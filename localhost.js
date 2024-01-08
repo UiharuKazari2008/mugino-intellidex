@@ -23,6 +23,7 @@
     const crypto = require('crypto');
     const globalRunKey = crypto.randomBytes(5).toString("hex");
     const Discord_CDN_Accepted_Files = ['jpg','jpeg','jfif','png','webp','gif'];
+    let active = true;
 
     console.log("Reading tags from database...");
     let exsitingTags = new Map();
@@ -63,7 +64,7 @@
         logging: false,
         ttl: false,
         expiredInterval: 2 * 60 * 1000, // every 2 minutes the process will clean-up the expired cache
-        forgiveParseErrors: false
+        forgiveParseErrors: true
     });
     LocalQueue.init((err) => {
         if (err) {
@@ -80,7 +81,7 @@
         logging: false,
         ttl: false,
         expiredInterval: 2 * 60 * 1000, // every 2 minutes the process will clean-up the expired cache
-        forgiveParseErrors: false
+        forgiveParseErrors: true
     });
     UpscaleQueue.init((err) => {
         if (err) {
@@ -512,8 +513,10 @@
                     }
                 });
                 conn.on("close", function() {
-                    Logger.printLine("KanmiMQ", "Attempting to Reconnect...", "debug")
-                    return setTimeout(start, 1000);
+                    if (active) {
+                        Logger.printLine("KanmiMQ", "Attempting to Reconnect...", "debug")
+                        return setTimeout(start, 1000);
+                    }
                 });
                 Logger.printLine("KanmiMQ", `Connected to Kanmi Exchange as ${systemglobal.system_name}!`, "info")
                 amqpConn = conn;
@@ -933,18 +936,17 @@
         return false;
     }
     async function validateImageInputs() {
-        const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path).map(async e => {
+        const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
+        for (let e of imageFile) {
             try {
                 const image = await sharp(fs.readFileSync(path.join(systemglobal.deepbooru_input_path, e))).metadata();
             } catch (err) {
                 console.error(err);
-
+                fs.unlink(path.join(systemglobal.deepbooru_input_path, e))
             }
-        })
+        }
 
     }
-
-
 
     async function parseUntilDone(analyzerGroups) {
         while (true) {
@@ -1002,5 +1004,4 @@
     process.on('uncaughtException', async (err) => {
         console.log(err);
     })
-
 })()
