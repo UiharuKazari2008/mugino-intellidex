@@ -159,7 +159,7 @@
                     .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 if (imageFile)
                     fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
-                LocalQueue.removeItem(key);
+                await LocalQueue.removeItem(key);
             } else if ((filePath.split('/').pop().split('\\').pop().endsWith('.jpg') || filePath.split('/').pop().split('\\').pop().endsWith('.png')) && filePath.split('/').pop().split('\\').pop().startsWith('upscale-')) {
                 const key = path.basename(filePath).split('upscale-').pop().split('.')[0];
                 console.error(`Message ${key} has been upscaled!`);
@@ -999,5 +999,8 @@
         runTimer = setTimeout(parseUntilDone, 300000);
     }
 
+    process.on('uncaughtException', async (err) => {
+        console.log(err);
+    })
 
 })()
