@@ -473,11 +473,11 @@
                                 let smallest = null;
                                 let largest = null;
                                 if (metadata.width > metadata.height) { // Landscape Resize
-                                    metadata.width = largest
-                                    metadata.height = smallest
+                                    largest = metadata.width;
+                                    smallest = metadata.height;
                                 } else { // Portrait or Square Image
-                                    metadata.height = largest
-                                    metadata.width = smallest
+                                    largest = metadata.height;
+                                    smallest = metadata.width;
                                 }
                                 if (rules && metadata && rules.require && rules.require.max_res && rules.require.max_res <= largest) {
                                     console.error(`Blocked because image to large: ${largest} > ${rules.require.max_res} `);
