@@ -171,7 +171,7 @@
                     .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 if (imageFile)
                     fs.unlinkSync(path.join(systemglobal.waifu2x_input_path, (imageFile)));
-                UpscaleQueue.removeItem(key);
+                await UpscaleQueue.removeItem(key);
             }
         })
         .on('error', function (error) {
@@ -466,22 +466,52 @@
                     Logger.printLine(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info");
                     LocalQueue.setItem(fileId, { id: fileId, queue, message: msg })
                         .then(async function () {
-                            await sharp(new Buffer.from(msg.itemFileData, 'base64'))
-                                .toFormat('png')
-                                .toFile(path.join(systemglobal.deepbooru_input_path, `message-${fileId}.png`), (err, info) => {
-                                    if (err) {
-                                        Logger.printLine("SaveFile", `Error when saving the file ${fileId}`, "error")
-                                        console.error(err);
-                                        mqClient.sendData( `${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
-                                            cb(ok);
-                                        });
-                                    } else {
-                                        cb(true);
-                                        clearTimeout(startEvaluating);
-                                        startEvaluating = null;
-                                        startEvaluating = setTimeout(processGPUWorkloads, 60000)
-                                    }
-                                })
+                            const image = sharp(new Buffer.from(msg.itemFileData, 'base64'));
+                            const metadata = await image.metadata();
+                            const rules = ruleSets.get(msg.messageChannelID);
+                            const valid = (() => {
+                                let smallest = null;
+                                let largest = null;
+                                if (metadata.width > metadata.height) { // Landscape Resize
+                                    metadata.width = largest
+                                    metadata.height = smallest
+                                } else { // Portrait or Square Image
+                                    metadata.height = largest
+                                    metadata.width = smallest
+                                }
+                                if (rules && metadata && rules.require && rules.require.max_res && rules.require.max_res <= largest) {
+                                    console.error(`Blocked because image to large: ${largest} > ${rules.require.max_res} `);
+                                    return false;
+                                }
+                                if (rules && metadata && rules.require && rules.require.min_res && rules.require.min_res > smallest) {
+                                    console.error(`Blocked because image to small: ${smallest} < ${rules.require.min_res}"`);
+                                    return false;
+                                }
+                                return true;
+                            })()
+                            if (valid) {
+                                await image
+                                    .toFormat('png')
+                                    .withMetadata()
+                                    .toFile(path.join(systemglobal.deepbooru_input_path, `message-${fileId}.png`), (err, info) => {
+                                        if (err) {
+                                            Logger.printLine("SaveFile", `Error when saving the file ${fileId}`, "error")
+                                            console.error(err);
+                                            mqClient.sendData(`${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
+                                                cb(ok);
+                                            });
+                                            cb(false);
+                                        } else {
+                                            clearTimeout(startEvaluating);
+                                            startEvaluating = null;
+                                            startEvaluating = setTimeout(processGPUWorkloads, 60000);
+                                            cb(true);
+                                        }
+                                    })
+                            } else {
+                                Logger.printLine(`MessageProcessor`, `Image was rejected by pre-parser`, `warn`)
+                                cb(true);
+                            }
                         })
                         .catch(function (err) {
                             mqClient.sendData( `${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
