@@ -938,6 +938,10 @@
                                     console.error(`Found a blocked tags "${tags.filter(t => rules.block.indexOf(t) !== -1).join(' ')}"`)
                                     return false;
                                 }
+                                if (rules && rules.block_pairs && rules.block_pairs.map(ph => ph.map(p => tags.filter(t => (p.indexOf(t) !== -1)).length).filter(g => !g).length).filter(h => h === 0).length > 0) {
+                                    console.error(`Found a blocked pair of tags "${rules.block_pairs.join(' + ')}"`)
+                                    return false;
+                                }
                                 return true;
                             })()
                             if (result) {
