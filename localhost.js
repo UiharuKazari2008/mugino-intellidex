@@ -514,7 +514,8 @@
                             }
                         })
                         .catch(function (err) {
-                            Logger.printLine(`MessageProcessor`, `Failed to set save message`, `error`, err)
+                            console.log(err);
+                            Logger.printLine(`MessageProcessor`, `Failed to save message`, `error`, err)
                             mqClient.sendData( `${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
                                 cb(ok);
                             });
