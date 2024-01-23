@@ -500,7 +500,6 @@
                                             mqClient.sendData(`${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
                                                 cb(ok);
                                             });
-                                            cb(false);
                                         } else {
                                             clearTimeout(startEvaluating);
                                             startEvaluating = null;
