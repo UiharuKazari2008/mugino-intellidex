@@ -514,11 +514,10 @@
                             }
                         })
                         .catch(function (err) {
+                            Logger.printLine(`MessageProcessor`, `Failed to set save message`, `error`, err)
                             mqClient.sendData( `${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
                                 cb(ok);
                             });
-                            Logger.printLine(`MessageProcessor`, `Failed to set save message`, `error`, err)
-                            cb(false);
                         })
                 } else {
                     Logger.printLine(`MessageProcessor`, `Bypass Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "debug");
