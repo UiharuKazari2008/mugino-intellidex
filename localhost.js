@@ -1,3 +1,8 @@
+const tf = require("@tensorflow/tfjs-node");
+const nsfw = require("nsfwjs");
+const fs = require("fs");
+const sharp = require("sharp");
+const jpeg = require("jpeg-js");
 (async () => {
     const systemglobal = require('./config.json');
     if (process.env.SYSTEM_NAME && process.env.SYSTEM_NAME.trim().length > 0)
@@ -21,9 +26,40 @@
     const mqClient = require('./utils/mqAccess');
     const { DiscordSnowflake } = require('@sapphire/snowflake');
     const crypto = require('crypto');
+    const tf = require('@tensorflow/tfjs-node');
+    const nsfw = require('nsfwjs');
+    const express = require('express');
+    const jpeg = require('jpeg-js');
     const globalRunKey = crypto.randomBytes(5).toString("hex");
+
     const Discord_CDN_Accepted_Files = ['jpg','jpeg','jfif','png','webp','gif'];
+    const nsfwClassTypes = {
+        "Neutral": 0,
+        "Drawing": 1,
+        "Sexy": 2,
+        "Porn": 4,
+        "Hentai": 6
+    }
     let active = true;
+
+    const app = express();
+
+    const convert = async (img) => {
+        const rawImageData = await sharp(img).raw().jpeg().toBuffer()
+        const decoded = jpeg.decode(rawImageData);
+        const { width, height, data } = decoded
+        const buffer = new Uint8Array(width * height * 3);
+        let offset = 0;
+        for (let i = 0; i < buffer.length; i += 3) {
+            buffer[i] = data[offset];
+            buffer[i + 1] = data[offset + 1];
+            buffer[i + 2] = data[offset + 2];
+
+            offset += 4;
+        }
+        return tf.tensor3d(buffer, [height, width, 3]);
+    }
+    app.use(express.static(path.join('../utils/models/')));
 
     console.log("Reading tags from database...");
     let exsitingTags = new Map();
@@ -150,7 +186,8 @@
                 const jsonFilePath = path.resolve(filePath);
                 const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
                 console.error(`Message ${key} has ${Object.keys(tagResults).length} tags!`);
-                const approved = await parseResultsForMessage(key, tagResults);
+                const nsfwClass = getSafetyClassification(filePath);
+                const approved = await parseResultsForMessage(key, tagResults, nsfwClass);
                 if (approved) {
                     mqClient.sendData( `${approved.destination}`, approved.message, function (ok) { });
                     console.error(`Message ${key} was approved!`);
@@ -743,6 +780,24 @@
             return true;
         }
     }
+    async function getSafetyClassification(file) {
+        try {
+            const img = await convertForTf(file);
+            const classes = await model.classify(img);
+            const threshold = 0.5;
+            const filteredPredictions = classes.filter(prediction => prediction.probability > threshold);
+            if (filteredPredictions.length === 0)
+                return false;
+            const val = filteredPredictions[0];
+            let safety = nsfwClassTypes[val.className];
+            if (safety >= 2 && val.probability > 0.75)
+                safety++;
+            const tags = filteredPredictions.map(k => `3/${parseFloat(k.probability).toFixed(4)}/st_${k.className.toLowerCase()}`).join('; ');
+            return { safety, tags }
+        } catch (e) {
+            return false;
+        }
+    }
     async function queryForTags(analyzerGroup) {
         const sqlFields = [
             'kanmi_records.eid',
@@ -921,7 +976,7 @@
         }
         return false;
     }
-    async function parseResultsForMessage(key, results) {
+    async function parseResultsForMessage(key, results, nsfwResults) {
         if (key && results) {
             return await new Promise(ok => {
                 LocalQueue.getItem(key)
@@ -944,13 +999,17 @@
                                 }
                                 return true;
                             })()
+                            let tagString = Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ')
+                            if (nsfwResults && nsfwResults.tags)
+                                tagString += ((tagString.length > 0 && !tagString.endsWith(';')) ? ';' : '') + nsfwResults.tags
                             if (result) {
                                 ok({
                                     destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
                                     message: {
                                         fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
-                                       ...data.message,
-                                       messageTags: Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ')
+                                        ...data.message,
+                                        messageSafety: (nsfwResults) ? nsfwResults.safety : undefined,
+                                        messageTags: tagString
                                    }
                                 });
                             } else {
@@ -980,6 +1039,21 @@
             }
         }
 
+    }
+    async function convertForTf(img) {
+        const rawImageData = await sharp(img).raw().jpeg().toBuffer()
+        const decoded = jpeg.decode(rawImageData);
+        const { width, height, data } = decoded
+        const buffer = new Uint8Array(width * height * 3);
+        let offset = 0;
+        for (let i = 0; i < buffer.length; i += 3) {
+            buffer[i] = data[offset];
+            buffer[i + 1] = data[offset + 1];
+            buffer[i + 2] = data[offset + 2];
+
+            offset += 4;
+        }
+        return tf.tensor3d(buffer, [height, width, 3]);
     }
 
     async function parseUntilDone(analyzerGroups) {
@@ -1034,6 +1108,20 @@
         console.log('Waiting for next run... Zzzzz')
         runTimer = setTimeout(parseUntilDone, 300000);
     }
+
+    let model
+    const server = app.listen(9052, async function(err) {
+        if (err) {
+            console.log('App listening error ', err);
+        } else {
+            console.log('App running at 9052')
+        }
+
+        await tf.enableProdMode();
+        await tf.ready();
+
+        model = await nsfw.load(`http://localhost:9052/nsfw/`, { size: 224 });
+    });
 
     process.on('uncaughtException', async (err) => {
         console.log(err);
