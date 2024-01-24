@@ -3,6 +3,8 @@ const nsfw = require("nsfwjs");
 const fs = require("fs");
 const sharp = require("sharp");
 const jpeg = require("jpeg-js");
+const systemglobal = require("./config.json");
+const path = require("path");
 (async () => {
     const systemglobal = require('./config.json');
     if (process.env.SYSTEM_NAME && process.env.SYSTEM_NAME.trim().length > 0)
@@ -182,33 +184,44 @@ const jpeg = require("jpeg-js");
             if (filePath.split('/').pop().split('\\').pop().endsWith('.json') && filePath.split('/').pop().split('\\').pop().startsWith('query-')) {
                 const eid = path.basename(filePath).split('query-').pop().split('.')[0];
                 const jsonFilePath = path.resolve(filePath);
+                const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
+                    .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
-                console.error(`Entity ${eid} has ${Object.keys(tagResults).length} tags!`);
-                await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ? WHERE eid = ?`, [ Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; '), eid ])
+                const nsfwResults = await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile)));
+                let tagString = Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ');
+                let safety = null;
+                console.log(`Entity ${eid} has ${Object.keys(tagResults).length} tags!`);
+                if (nsfwResults) {
+                    tagString += ((tagString.length > 0 && !tagString.endsWith(';')) ? ';' : '') + nsfwResults.tags
+                    safety = nsfwResults.safety;
+                    console.error(`Entity ${eid} is classified as ${nsfwResults.safetyClassName}`);
+                }
+                await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ?, safety = ? WHERE eid = ?`, [ tagString, safety, eid ])
                 Object.keys(tagResults).map(async k => {
                     const r = tagResults[k];
                     await addTagForEid(eid, k, r);
                 });
                 fs.unlinkSync(jsonFilePath);
-                const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
-                    .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 if (imageFile)
                     fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
                 activeFiles.delete(eid);
             } else if (filePath.split('/').pop().split('\\').pop().endsWith('.json') && filePath.split('/').pop().split('\\').pop().startsWith('message-')) {
                 const key = path.basename(filePath).split('message-').pop().split('.')[0];
                 const jsonFilePath = path.resolve(filePath);
+                const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
+                    .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
-                console.error(`Message ${key} has ${Object.keys(tagResults).length} tags!`);
-                const nsfwClass = getSafetyClassification(filePath);
+                const nsfwClass = await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile)));
+                if (nsfwClass) {
+                    console.error(`Message ${key} is classified as ${nsfwClass.safetyClassName}`);
+                }
                 const approved = await parseResultsForMessage(key, tagResults, nsfwClass);
+                console.error(`Message ${key} has ${Object.keys(tagResults).length} tags!`);
                 if (approved) {
                     mqClient.sendData( `${approved.destination}`, approved.message, function (ok) { });
                     console.error(`Message ${key} was approved!`);
                 } else { console.error(`Message ${key} was denied!`); }
                 fs.unlinkSync(jsonFilePath);
-                const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
-                    .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 if (imageFile)
                     fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
                 await LocalQueue.removeItem(key);
@@ -803,11 +816,12 @@ const jpeg = require("jpeg-js");
             if (filteredPredictions.length === 0)
                 return false;
             const val = filteredPredictions[0];
-            let safety = nsfwClassTypes[val.className];
+            let safetyClassName = val.className;
+            let safety = nsfwClassTypes[safetyClassName];
             if (safety >= 2 && val.probability > 0.75)
                 safety++;
             const tags = filteredPredictions.map(k => `3/${parseFloat(k.probability).toFixed(4)}/st_${k.className.toLowerCase()}`).join('; ');
-            return { safety, tags }
+            return { safety, safetyClassName, tags }
         } catch (e) {
             return false;
         }
