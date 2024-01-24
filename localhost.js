@@ -152,6 +152,20 @@ const jpeg = require("jpeg-js");
         }, 60000)
     }
 
+    let model
+    const server = app.listen(9052, async function(err) {
+        if (err) {
+            console.log('App listening error ', err);
+        } else {
+            console.log('App running at 9052')
+        }
+
+        await tf.enableProdMode();
+        await tf.ready();
+
+        model = await nsfw.load(`http://localhost:9052/nsfw/`, { size: 224 });
+    });
+
     const resultsWatcher = chokidar.watch(systemglobal.deepbooru_output_path, {
         ignored: /[\/\\]\./,
         persistent: true,
@@ -1286,20 +1300,6 @@ const jpeg = require("jpeg-js");
         console.log('Waiting for next run... Zzzzz')
         runTimer = setTimeout(parseUntilDone, 300000);
     }
-
-    let model
-    const server = app.listen(9052, async function(err) {
-        if (err) {
-            console.log('App listening error ', err);
-        } else {
-            console.log('App running at 9052')
-        }
-
-        await tf.enableProdMode();
-        await tf.ready();
-
-        model = await nsfw.load(`http://localhost:9052/nsfw/`, { size: 224 });
-    });
 
     process.on('uncaughtException', async (err) => {
         console.log(err);
