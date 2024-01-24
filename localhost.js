@@ -1,10 +1,3 @@
-const tf = require("@tensorflow/tfjs-node");
-const nsfw = require("nsfwjs");
-const fs = require("fs");
-const sharp = require("sharp");
-const jpeg = require("jpeg-js");
-const systemglobal = require("./config.json");
-const path = require("path");
 (async () => {
     const systemglobal = require('./config.json');
     if (process.env.SYSTEM_NAME && process.env.SYSTEM_NAME.trim().length > 0)
@@ -36,31 +29,16 @@ const path = require("path");
 
     const Discord_CDN_Accepted_Files = ['jpg','jpeg','jfif','png','webp','gif'];
     const nsfwClassTypes = {
-        "Neutral": 0,
-        "Drawing": 1,
-        "Sexy": 2,
-        "Porn": 4,
-        "Hentai": 6
+        "Neutral": 1,
+        "Drawing": 2,
+        "Sexy": 3,
+        "Porn": 5,
+        "Hentai": 7
     }
     let active = true;
 
     const app = express();
 
-    const convert = async (img) => {
-        const rawImageData = await sharp(img).raw().jpeg().toBuffer()
-        const decoded = jpeg.decode(rawImageData);
-        const { width, height, data } = decoded
-        const buffer = new Uint8Array(width * height * 3);
-        let offset = 0;
-        for (let i = 0; i < buffer.length; i += 3) {
-            buffer[i] = data[offset];
-            buffer[i + 1] = data[offset + 1];
-            buffer[i + 2] = data[offset + 2];
-
-            offset += 4;
-        }
-        return tf.tensor3d(buffer, [height, width, 3]);
-    }
     app.use(express.static(path.join('./utils/models/')));
 
     console.log("Reading tags from database...");
@@ -818,7 +796,7 @@ const path = require("path");
             const val = filteredPredictions[0];
             let safetyClassName = val.className;
             let safety = nsfwClassTypes[safetyClassName];
-            if (safety >= 2 && val.probability > 0.75)
+            if (safety >= 3 && val.probability > 0.75)
                 safety = safety + 1;
             const tags = filteredPredictions.map(k => `3/${k.probability.toFixed(4)}/st_${k.className.toLowerCase()}`).join('; ');
             return { safety, safetyClassName, tags }
