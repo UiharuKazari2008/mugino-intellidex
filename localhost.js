@@ -187,7 +187,7 @@ const path = require("path");
                 const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
                     .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
-                const nsfwResults = await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile)));
+                const nsfwResults = (imageFile) ? await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile))) : false;
                 let tagString = Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ');
                 let safety = null;
                 console.log(`Entity ${eid} has ${Object.keys(tagResults).length} tags!`);
@@ -211,7 +211,7 @@ const path = require("path");
                 const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
                     .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
-                const nsfwClass = await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile)));
+                const nsfwClass = (imageFile) ? await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile))) : undefined;
                 if (nsfwClass) {
                     console.error(`Message ${key} is classified as ${nsfwClass.safetyClassName}`);
                 }
