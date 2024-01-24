@@ -166,11 +166,11 @@
                     .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
                 const nsfwResults = (imageFile) ? await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile))) : false;
-                let tagString = Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ') + '; ';
+                let tagString = (Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ') + '; ');
                 let safety = null;
                 console.log(`Entity ${eid} has ${Object.keys(tagResults).length} tags!`);
                 if (nsfwResults) {
-                    tagString += nsfwResults.tags + '; '
+                    tagString += nsfwResults.tags
                     safety = nsfwResults.safety;
                     console.error(`Entity ${eid} is classified as ${nsfwResults.safetyClassName}`);
                 }
@@ -798,7 +798,7 @@
             let safety = nsfwClassTypes[safetyClassName];
             if (safety >= 3 && val.probability > 0.75)
                 safety = safety + 1;
-            const tags = filteredPredictions.map(k => `3/${k.probability.toFixed(4)}/st_${k.className.toLowerCase()}`).join('; ');
+            const tags = (filteredPredictions.map(k => `3/${k.probability.toFixed(4)}/st_${k.className.toLowerCase()}`).join('; ') + '; ');
             return { safety, safetyClassName, tags }
         } catch (e) {
             return false;
@@ -1183,9 +1183,9 @@
                                 }
                                 return true;
                             })()
-                            let tagString = Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; '
+                            let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
                             if (nsfwResults && nsfwResults.tags)
-                                tagString += nsfwResults.tags + '; '
+                                tagString += nsfwResults.tags
                             if (result) {
                                 ok({
                                     destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
