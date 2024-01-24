@@ -170,7 +170,7 @@
                 let safety = null;
                 console.log(`Entity ${eid} has ${Object.keys(tagResults).length} tags!`);
                 if (nsfwResults) {
-                    tagString += ((tagString.length > 0) ? '; ' : '') + nsfwResults.tags
+                    tagString += ((tagString.length > 0) ? '; ' : '') + nsfwResults.tags + ';'
                     safety = nsfwResults.safety;
                     console.error(`Entity ${eid} is classified as ${nsfwResults.safetyClassName}`);
                 }
@@ -1185,7 +1185,7 @@
                             })()
                             let tagString = Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ')
                             if (nsfwResults && nsfwResults.tags)
-                                tagString += ((tagString.length > 0) ? '; ' : '') + nsfwResults.tags
+                                tagString += ((tagString.length > 0) ? '; ' : '') + nsfwResults.tags + ';'
                             if (result) {
                                 ok({
                                     destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
