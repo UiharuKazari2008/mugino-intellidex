@@ -784,9 +784,9 @@ const path = require("path");
                         muginoMeltdown.stdout.on('data', (data) => console.log(data.toString().trim().split('\n').filter(e => e.trim().length > 1 && !e.trim().includes('===] ')).join('\n')))
                     muginoMeltdown.stderr.on('data', (data) => console.error(data.toString()));
                     muginoMeltdown.on('close', (code, signal) => {
-                        (fs.readdirSync(systemglobal.deepbooru_input_path))
+                        /*(fs.readdirSync(systemglobal.deepbooru_input_path))
                             .filter(e => fs.existsSync(path.join(systemglobal.deepbooru_output_path, `${e.split('.')[0]}.json`)))
-                            .map(e => fs.unlinkSync(path.resolve(systemglobal.deepbooru_input_path, e)))
+                            .map(e => fs.unlinkSync(path.resolve(systemglobal.deepbooru_input_path, e)))*/
                         if (code !== 0) {
                             console.error(`Mugino Meltdown! MIITS reported a error during tagging operation!`);
                             mittsIsActive = false;
@@ -819,8 +819,8 @@ const path = require("path");
             let safetyClassName = val.className;
             let safety = nsfwClassTypes[safetyClassName];
             if (safety >= 2 && val.probability > 0.75)
-                safety++;
-            const tags = filteredPredictions.map(k => `3/${parseFloat(k.probability).toFixed(4)}/st_${k.className.toLowerCase()}`).join('; ');
+                safety = safety + 1;
+            const tags = filteredPredictions.map(k => `3/${k.probability.toFixed(4)}/st_${k.className.toLowerCase()}`).join('; ');
             return { safety, safetyClassName, tags }
         } catch (e) {
             return false;
