@@ -179,9 +179,17 @@
                     const r = tagResults[k];
                     await addTagForEid(eid, k, r);
                 });
-                fs.unlinkSync(jsonFilePath);
-                if (imageFile)
-                    fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
+                try {
+                    fs.unlinkSync(jsonFilePath);
+                } catch (e) {
+                    
+                }
+                try {
+                    if (imageFile)
+                        fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
+                } catch (e) {
+                    
+                }
                 activeFiles.delete(eid);
             } else if (filePath.split('/').pop().split('\\').pop().endsWith('.json') && filePath.split('/').pop().split('\\').pop().startsWith('message-')) {
                 const key = path.basename(filePath).split('message-').pop().split('.')[0];
