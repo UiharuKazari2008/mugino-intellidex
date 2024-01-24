@@ -211,7 +211,7 @@ const path = require("path");
                 const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
                     .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
-                const nsfwClass = (imageFile) ? await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile))) : undefined;
+                const nsfwClass = (imageFile) ? await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile))) : false;
                 if (nsfwClass) {
                     console.error(`Message ${key} is classified as ${nsfwClass.safetyClassName}`);
                 }
