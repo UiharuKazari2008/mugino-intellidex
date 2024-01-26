@@ -1230,8 +1230,12 @@
             try {
                 const image = await sharp(fs.readFileSync(path.join(systemglobal.deepbooru_input_path, e))).metadata();
             } catch (err) {
-                console.error(err);
-                fs.unlink(path.join(systemglobal.deepbooru_input_path, e))
+                console.error(err.message);
+                try {
+                    fs.unlink(path.join(systemglobal.deepbooru_input_path, e))
+                } catch (e) {
+                    console.error(err.message);
+                }
             }
         }
 
