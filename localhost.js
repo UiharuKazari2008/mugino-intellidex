@@ -182,13 +182,13 @@
                 try {
                     fs.unlinkSync(jsonFilePath);
                 } catch (e) {
-                    
+
                 }
                 try {
                     if (imageFile)
                         fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
                 } catch (e) {
-                    
+
                 }
                 activeFiles.delete(eid);
             } else if (filePath.split('/').pop().split('\\').pop().endsWith('.json') && filePath.split('/').pop().split('\\').pop().startsWith('message-')) {
@@ -535,6 +535,10 @@
                                 }
                                 if (rules && metadata && rules.require && rules.require.min_res && rules.require.min_res > smallest) {
                                     console.error(`Blocked because image to small: ${smallest} < ${rules.require.min_res}"`);
+                                    return false;
+                                }
+                                if (rules && metadata && rules.require && rules.require.not_aspect_ratio && rules.require.not_aspect_ratio.indexOf((metadata.height / metadata.width).toFixed(5)) !== -1) {
+                                    console.error(`Blocked because aspect ratio: ${(metadata.height / metadata.width)}R"`);
                                     return false;
                                 }
                                 return true;
