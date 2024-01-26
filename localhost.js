@@ -537,7 +537,7 @@
                                     console.error(`Blocked because image to small: ${smallest} < ${rules.require.min_res}"`);
                                     return false;
                                 }
-                                if (rules && metadata && rules.require && rules.require.not_aspect_ratio && rules.require.not_aspect_ratio.indexOf((metadata.height / metadata.width).toFixed(5)) !== -1) {
+                                if (rules && metadata && rules.require && rules.require.not_aspect_ratio && rules.require.not_aspect_ratio.indexOf((metadata.height / metadata.width).toFixed(5).toString()) !== -1) {
                                     console.error(`Blocked because aspect ratio: ${(metadata.height / metadata.width)}R"`);
                                     return false;
                                 }
