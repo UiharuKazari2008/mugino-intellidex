@@ -801,7 +801,7 @@
         try {
             let img = await convertForTf(file);
             const classes = await model.classify(img);
-            img.dispose();
+            tf.dispose(img);
             const threshold = 0.5;
             const filteredPredictions = classes.filter(prediction => prediction.probability > threshold);
             if (filteredPredictions.length === 0)
