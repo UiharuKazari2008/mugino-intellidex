@@ -133,7 +133,7 @@
     }
 
     function startServer() {
-        const server = app.listen(9052, async function (err) {
+        const server = app.listen(9052, '0.0.0.0',async function (err) {
             if (err) {
                 console.log('App listening error ', err);
             } else {
