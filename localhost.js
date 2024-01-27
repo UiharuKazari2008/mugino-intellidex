@@ -4,8 +4,6 @@
         systemglobal.system_name = process.env.SYSTEM_NAME.trim()
     const facilityName = 'MuginoMIITS';
     const sleep = (waitTimeInMs) => new Promise(resolve => setTimeout(resolve, waitTimeInMs));
-    const md5 = require('md5');
-    const cron = require('node-cron');
     const { spawn, exec } = require("child_process");
     const fs = require('fs');
     const path = require('path');
@@ -16,7 +14,7 @@
     const rimraf = require('rimraf');
     const storageHandler = require('node-persist');
     const request = require('request').defaults({ encoding: null, jar: true });
-    const {sqlPromiseSafe, sqlPromiseSimple} = require("./utils/sqlClient");
+    const { sqlPromiseSafe } = require("./utils/sqlClient");
     const Logger = require('./utils/logSystem');
     const mqClient = require('./utils/mqAccess');
     const { DiscordSnowflake } = require('@sapphire/snowflake');
@@ -115,6 +113,8 @@
     let upscaleIsActive = false;
     let mittsIsActive = false;
     let runTimer = null;
+    let shutdownRequested = false;
+    let model
 
     if (systemglobal.Watchdog_Host && systemglobal.Watchdog_ID) {
         console.log(`Registering with Watchdog with ID "${systemglobal.Watchdog_ID}" as Entity "${facilityName}-${systemglobal.system_name}"`)
@@ -132,19 +132,25 @@
         }, 60000)
     }
 
-    let model
-    const server = app.listen(9052, async function(err) {
-        if (err) {
-            console.log('App listening error ', err);
-        } else {
-            console.log('App running at 9052')
+    function startServer() {
+        const server = app.listen(9052, async function (err) {
+            if (err) {
+                console.log('App listening error ', err);
+            } else {
+                console.log('App running at 9052')
+            }
+
+            await tf.enableProdMode();
+            await tf.ready();
+
+            model = await nsfw.load(`http://localhost:9052/nsfw/`, {size: 224});
+        });
+    }
+    async function waitForGPUUnlock() {
+        while(gpuLocked) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
-
-        await tf.enableProdMode();
-        await tf.ready();
-
-        model = await nsfw.load(`http://localhost:9052/nsfw/`, { size: 224 });
-    });
+    }
 
     const resultsWatcher = chokidar.watch(systemglobal.deepbooru_output_path, {
         ignored: /[\/\\]\./,
@@ -238,6 +244,18 @@
         const amqp = require('amqplib/callback_api');
         let amqpConn = null;
 
+        app.get('/shutdown', async (req, res) => {
+            shutdownRequested = true;
+            amqpConn.close();
+            clearTimeout(startEvaluating);
+            startEvaluating = null;
+            if (!gpuLocked) {
+                await processGPUWorkloads();
+            }
+            await waitForGPUUnlock();
+            res.status(200).end();
+        })
+
         if (process.env.MQ_HOST && process.env.MQ_HOST.trim().length > 0)
             systemglobal.mq_host = process.env.MQ_HOST.trim()
         if (process.env.RABBITMQ_DEFAULT_USER && process.env.RABBITMQ_DEFAULT_USER.trim().length > 0)
@@ -263,7 +281,8 @@
                 });
                 ch.on("close", function() {
                     Logger.printLine("KanmiMQ", "Channel 1 Closed (Remote)", "critical")
-                    start();
+                    if (!shutdownRequested)
+                        amqpConn.close();
                 });
                 ch.prefetch(10);
                 ch.assertQueue(MQWorker1, { durable: true }, function(err, _ok) {
@@ -301,7 +320,8 @@
                 });
                 ch.on("close", function() {
                     Logger.printLine("KanmiMQ", "Channel 2 Closed (Local)", "critical")
-                    start();
+                    if (!shutdownRequested)
+                        amqpConn.close();
                 });
                 ch.prefetch(1);
                 ch.assertQueue(MQWorker2, { durable: true }, function(err, _ok) {
@@ -316,7 +336,6 @@
                         Logger.printLine("KanmiMQ", "Channel 2 Worker Bound to Exchange (Local)", "debug")
                     })
                 })
-
                 function processMsg(msg) {
                     work(msg, 'priority', function(ok) {
                         try {
@@ -340,7 +359,8 @@
                 });
                 ch.on("close", function() {
                     Logger.printLine("KanmiMQ", "Channel 3 Closed (Backlog)", "critical")
-                    start();
+                    if (!shutdownRequested)
+                        amqpConn.close();
                 });
                 ch.prefetch(5);
                 ch.assertQueue(MQWorker3, { durable: true, queueMode: 'lazy'  }, function(err, _ok) {
@@ -622,6 +642,7 @@
             init = true
         }
 
+        startServer();
         await validateImageInputs();
         await processGPUWorkloads();
         start();
@@ -838,184 +859,6 @@
             'kanmi_records.attachment_extra IS NULL',
             'kanmi_records.hidden = 0',
             'kanmi_records.tags IS NULL'
-        ]
-        const sqlWhereFiletypes = [
-            "kanmi_records.attachment_name LIKE '%.jp%_'",
-            "kanmi_records.attachment_name LIKE '%.jfif'",
-            "kanmi_records.attachment_name LIKE '%.png'",
-            "kanmi_records.attachment_name LIKE '%.gif'",
-        ]
-        let sqlWhereFilter = [];
-
-        if (analyzerGroup && analyzerGroup.query) {
-            sqlWhereFilter.push(analyzerGroup.query)
-        } else {
-            if (analyzerGroup && analyzerGroup.channels) {
-                sqlWhereFilter.push('(' + analyzerGroup.channels.map(h => `kanmi_records.channel = '${h}'`).join(' OR ') + ')');
-            }
-            if (analyzerGroup && analyzerGroup.servers) {
-                sqlWhereFilter.push('(' + analyzerGroup.servers.map(h => `kanmi_records.server = '${h}'`).join(' OR ') + ')');
-            }
-            if (analyzerGroup && analyzerGroup.content) {
-                sqlWhereFilter.push('(' + analyzerGroup.content.map(h => `kanmi_records.content_full LIKE '%${h}%'`).join(' OR ') + ')');
-            }
-
-            if (analyzerGroup && analyzerGroup.parent) {
-                sqlWhereFilter.push('(' + analyzerGroup.parent.map(h => `kanmi_channels.parent = '${h}'`).join(' OR ') + ')');
-            }
-            if (analyzerGroup && analyzerGroup.class) {
-                sqlWhereFilter.push('(' + analyzerGroup.class.map(h => `kanmi_channels.classification = '${h}'`).join(' OR ') + ')');
-            }
-            if (analyzerGroup && analyzerGroup.vcid) {
-                sqlWhereFilter.push('(' + analyzerGroup.vcid.map(h => `kanmi_channels.virtual_cid = '${h}'`).join(' OR ') + ')');
-            }
-        }
-
-        const sqlOrderBy = (analyzerGroup && analyzerGroup.order) ? analyzerGroup.order :'eid DESC'
-        const query = `SELECT ${sqlFields.join(', ')} FROM ${sqlTables.join(', ')} WHERE (${sqlWhereBase.join(' AND ')} AND (${sqlWhereFiletypes.join(' OR ')}))${(sqlWhereFilter.length > 0) ? ' AND (' + sqlWhereFilter.join(' AND ') + ')' : ''} ORDER BY ${sqlOrderBy} LIMIT ${(analyzerGroup && analyzerGroup.limit) ? analyzerGroup.limit : 100}`
-        console.log(`Selecting data for analyzer group...`, analyzerGroup);
-
-        const messages = (await sqlPromiseSafe(query, true)).rows.map(e => {
-            function getimageSizeParam() {
-            if (e.sizeH && e.sizeW && Discord_CDN_Accepted_Files.indexOf(e.attachment_name.split('.').pop().toLowerCase()) !== -1 && (e.sizeH > 512 || e.sizeW > 512)) {
-                let ih = 512;
-                let iw = 512;
-                if (e.sizeW >= e.sizeH) {
-                    iw = (e.sizeW * (512 / e.sizeH)).toFixed(0)
-                } else {
-                    ih = (e.sizeH * (512 / e.sizeW)).toFixed(0)
-                }
-                return `?width=${iw}&height=${ih}`
-            } else {
-                return ''
-            }
-        }
-            const url = (( e.cache_proxy) ? e.cache_proxy.startsWith('http') ? e.cache_proxy : `https://${(systemglobal.no_media_cdn || (activeFiles.has(e.eid) && (activeFiles.get(e.eid)) >= 2)) ? 'cdn.discordapp.com' : 'media.discordapp.net'}/attachments${e.cache_proxy}${(systemglobal.no_media_cdn || (activeFiles.has(e.eid) && (activeFiles.get(e.eid)) >= 2)) ? '' : getimageSizeParam()}` : (e.attachment_hash && e.attachment_name) ? `https://${(systemglobal.no_media_cdn || (activeFiles.has(e.eid) && (activeFiles.get(e.eid)) >= 2)) ? 'cdn.discordapp.com' : 'media.discordapp.net'}/attachments/` + ((e.attachment_hash.includes('/')) ? e.attachment_hash : `${e.channel}/${e.attachment_hash}/${e.attachment_name}${(systemglobal.no_media_cdn || (activeFiles.has(e.eid) && (activeFiles.get(e.eid)) >= 2)) ? '' : getimageSizeParam()}`) : undefined) + '';
-            return { url, ...e };
-        })
-        console.log(messages.length + ' items need to be tagged!')
-        let downlaods = {}
-        const existingFiles = [
-            ...new Set([
-                ...fs.readdirSync(systemglobal.deepbooru_input_path).map(e => e.split('.')[0]),
-                ...fs.readdirSync(systemglobal.deepbooru_output_path).map(e => e.split('.')[0])
-            ])
-        ]
-        messages.filter(e => existingFiles.indexOf(e.eid.toString()) === -1).map((e,i) => { downlaods[i] = e });
-        if (messages.length === 0)
-            return true;
-        while (Object.keys(downlaods).length !== 0) {
-            let downloadKeys = Object.keys(downlaods).slice(0,systemglobal.parallel_downloads || 25)
-            console.log(`${Object.keys(downlaods).length} Left to download`)
-            await Promise.all(downloadKeys.map(async k => {
-                const e = downlaods[k];
-                const results = await new Promise(ok => {
-
-                    const url = e.url;
-                    request.get({
-                        url,
-                        headers: {
-                            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-                            'accept-language': 'en-US,en;q=0.9',
-                            'cache-control': 'max-age=0',
-                            'sec-ch-ua': '"Chromium";v="92", " Not A;Brand";v="99", "Microsoft Edge";v="92"',
-                            'sec-ch-ua-mobile': '?0',
-                            'sec-fetch-dest': 'document',
-                            'sec-fetch-mode': 'navigate',
-                            'sec-fetch-site': 'none',
-                            'sec-fetch-user': '?1',
-                            'upgrade-insecure-requests': '1',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36 Edg/92.0.902.73'
-                        },
-                    }, async function (err, res, body) {
-                        if (err) {
-                            console.error(`Download failed: ${url}`, err);
-                            ok(false)
-                        } else {
-                            try {
-                                if (body && body.length > 100) {
-                                    const mime = await new Promise(ext => {
-                                        fileType.fromBuffer(body,function(err, result) {
-                                            if (err) {
-                                                console.error(`Failed to get MIME type for ${e.eid}`, err);
-                                                ext(null);
-                                            } else {
-                                                ext(result);
-                                            }
-                                        });
-                                    })
-                                    if (systemglobal.allow_direct_write && mime.ext && ['png', 'jpg'].indexOf(mime.ext) !== -1) {
-                                        fs.writeFileSync(path.join(systemglobal.deepbooru_input_path, `${e.eid}.${mime.ext}`), body);
-                                        ok(true);
-                                    } else if ((!systemglobal.allow_direct_write && mime.ext && ['png', 'jpg', 'gif', 'tiff', 'webp'].indexOf(mime.ext) !== -1) || (mime.ext && ['gif', 'tiff', 'webp'].indexOf(mime.ext) !== -1)) {
-                                        await sharp(body)
-                                            .toFormat('png')
-                                            .toFile(path.join(systemglobal.deepbooru_input_path, `query-${e.eid}.png`), (err, info) => {
-                                                if (err) {
-                                                    console.error(`Failed to convert ${e.eid} to PNG file`, err);
-                                                    ok(false);
-                                                } else {
-                                                    //console.log(`Downloaded as PNG ${e.url}`)
-                                                    ok(true);
-                                                }
-                                            })
-                                    } else {
-                                        console.error('Unsupported file, will be discarded! Please consider correcting file name');
-                                        ok(false);
-                                    }
-                                } else {
-                                    console.error(`Download failed, File size to small: ${url}`);
-                                    ok(false);
-                                }
-                            } catch (err) {
-                                console.error(`Unexpected Error processing ${e.eid}!`, err);
-                                console.error(e)
-                                ok(false);
-                            }
-                        }
-                        delete downlaods[k];
-                    })
-                })
-                if (!results) {
-                    if (activeFiles.has(e.eid)) {
-                        let prev = activeFiles.get(e.eid)
-                        if (prev <= 5) {
-                            prev++;
-                            activeFiles.set(e.eid, prev);
-                        } else {
-                            await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ? WHERE eid = ?`, [ '3/1/cant_tag; ', e.eid ]);
-                            console.error(`Failed to get data for ${e.eid} multiple times, it will be permanently skipped!`)
-                        }
-                    } else {
-                        activeFiles.set(e.eid, 0);
-                    }
-                }
-                return results;
-            }))
-        }
-        return false;
-    }
-    async function queryForNSFWTags(analyzerGroup) {
-        const sqlFields = [
-            'kanmi_records.eid',
-            'kanmi_records.channel',
-            'kanmi_records.attachment_name',
-            'kanmi_records.attachment_hash',
-            'kanmi_records.cache_proxy',
-            'kanmi_records.sizeH',
-            'kanmi_records.sizeW',
-        ]
-        const sqlTables = [
-            'kanmi_records',
-            'kanmi_channels',
-        ]
-        const sqlWhereBase = [
-            'kanmi_records.channel = kanmi_channels.channelid',
-            'kanmi_records.attachment_hash IS NOT NULL',
-            'kanmi_records.attachment_name IS NOT NULL',
-            'kanmi_records.attachment_extra IS NULL',
-            'kanmi_records.hidden = 0',
-            'kanmi_records.safety IS NULL'
         ]
         const sqlWhereFiletypes = [
             "kanmi_records.attachment_name LIKE '%.jp%_'",
