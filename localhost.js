@@ -144,6 +144,7 @@
             await tf.ready();
 
             model = await nsfw.load(`http://localhost:9052/nsfw/`, {size: 224});
+            console.log('Loaded Model for NSFW Classification')
         });
     }
     async function waitForGPUUnlock() {
