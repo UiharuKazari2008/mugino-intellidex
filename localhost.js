@@ -245,6 +245,9 @@
         const amqp = require('amqplib/callback_api');
         let amqpConn = null;
 
+        app.get('/', async (req, res) => {
+            res.status(200).send("Hello");
+        })
         app.get('/shutdown', async (req, res) => {
             shutdownRequested = true;
             amqpConn.close();
@@ -254,7 +257,7 @@
                 await processGPUWorkloads();
             }
             await waitForGPUUnlock();
-            res.status(200).end();
+            res.status(200).send('Shutdown OK');
         })
 
         if (process.env.MQ_HOST && process.env.MQ_HOST.trim().length > 0)
