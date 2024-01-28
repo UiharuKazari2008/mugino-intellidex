@@ -156,6 +156,10 @@
         }
         await new Promise(resolve => setTimeout(resolve, 5000));
     }
+    function toFixed( v, d ) {
+        //return (+(Math.round(+(v + 'e' + d)) + 'e' + -d)).toFixed(d);
+        return parseFloat(Math.round(v.toFixed(d+1)+'e'+d)+'e-'+d)
+    }
 
     const resultsWatcher = chokidar.watch(systemglobal.deepbooru_output_path, {
         ignored: /[\/\\]\./,
@@ -582,8 +586,8 @@
                                     console.error(`Blocked because image to small: ${smallest} < ${rules.require.min_res}"`);
                                     return false;
                                 }
-                                if (rules && metadata && rules.require && rules.require.not_aspect_ratio && rules.require.not_aspect_ratio.indexOf((metadata.height / metadata.width).toFixed(5).toString()) !== -1) {
-                                    console.error(`Blocked because aspect ratio: ${(metadata.height / metadata.width)}R"`);
+                                if (rules && metadata && rules.require && rules.require.not_aspect_ratio && rules.require.not_aspect_ratio.indexOf(toFixed((metadata.height / metadata.width), 5).toString()) !== -1) {
+                                    console.error(`Blocked because aspect ratio: ${toFixed((metadata.height / metadata.width), 5).toString()}R"`);
                                     return false;
                                 }
                                 return true;
