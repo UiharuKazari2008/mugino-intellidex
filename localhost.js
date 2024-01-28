@@ -154,6 +154,7 @@
         while((fs.readdirSync(systemglobal.deepbooru_output_path)).length > 0) {
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
+        await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
     const resultsWatcher = chokidar.watch(systemglobal.deepbooru_output_path, {
