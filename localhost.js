@@ -151,6 +151,9 @@
         while(gpuLocked) {
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
+        while((fs.readdirSync(systemglobal.deepbooru_output_path)).length > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
     }
 
     const resultsWatcher = chokidar.watch(systemglobal.deepbooru_output_path, {
@@ -620,7 +623,7 @@
                     }
                 });
                 conn.on("close", function() {
-                    if (active) {
+                    if (active && !shutdownRequested) {
                         Logger.printLine("KanmiMQ", "Attempting to Reconnect...", "debug")
                         return setTimeout(start, 1000);
                     }
