@@ -217,20 +217,36 @@
                     mqClient.sendData( `${approved.destination}`, approved.message, function (ok) { });
                     console.error(`Message ${key} was approved!`);
                 } else { console.error(`Message ${key} was denied!`); }
-                fs.unlinkSync(jsonFilePath);
-                if (imageFile)
-                    fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
+                try {
+                    fs.unlinkSync(jsonFilePath);
+                } catch (e) {
+
+                }
+                try {
+                    if (imageFile)
+                        fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
+                } catch (e) {
+
+                }
                 await LocalQueue.removeItem(key);
             } else if ((filePath.split('/').pop().split('\\').pop().endsWith('.jpg') || filePath.split('/').pop().split('\\').pop().endsWith('.png')) && filePath.split('/').pop().split('\\').pop().startsWith('upscale-')) {
                 const key = path.basename(filePath).split('upscale-').pop().split('.')[0];
                 console.error(`Message ${key} has been upscaled!`);
 
                 mqClient.sendData( `${approved.destination}`, approved.message, function (ok) { });
-                fs.unlinkSync(filePath);
+                try {
+                    fs.unlinkSync(filePath);
+                } catch (e) {
+
+                }
                 const imageFile = fs.readdirSync(systemglobal.waifu2x_input_path)
                     .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
-                if (imageFile)
-                    fs.unlinkSync(path.join(systemglobal.waifu2x_input_path, (imageFile)));
+                try {
+                    if (imageFile)
+                        fs.unlinkSync(path.join(systemglobal.waifu2x_input_path, (imageFile)));
+                } catch (e) {
+
+                }
                 await UpscaleQueue.removeItem(key);
             }
         })
@@ -791,7 +807,13 @@
                 const startTime = Date.now();
                 (fs.readdirSync(systemglobal.deepbooru_input_path))
                     .filter(e => fs.existsSync(path.join(systemglobal.deepbooru_output_path, `${e.split('.')[0]}.json`)) || (fs.statSync(path.resolve(systemglobal.deepbooru_input_path, e))).size <= 16)
-                    .map(e => fs.unlinkSync(path.resolve(systemglobal.deepbooru_input_path, e)))
+                    .map(e => {
+                        try {
+                            fs.unlinkSync(path.resolve(systemglobal.deepbooru_input_path, e))
+                        } catch (e) {
+
+                        }
+                    })
                 if ((fs.readdirSync(systemglobal.deepbooru_input_path)).length > 0) {
                     let ddOptions = ['evaluate', systemglobal.deepbooru_input_path, '--project-path', systemglobal.deepbooru_model_path, '--allow-folder', '--save-json', '--save-path', systemglobal.deepbooru_output_path, '--no-tag-output']
                     if (systemglobal.deepbooru_gpu)
