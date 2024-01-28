@@ -253,7 +253,8 @@
         })
         app.get('/shutdown', async (req, res) => {
             shutdownRequested = true;
-            amqpConn.close();
+            if (amqpConn)
+                amqpConn.close();
             clearTimeout(startEvaluating);
             startEvaluating = null;
             if (!gpuLocked) {
