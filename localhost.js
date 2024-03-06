@@ -923,11 +923,11 @@
         }
 
         const sqlOrderBy = (analyzerGroup && analyzerGroup.order) ? analyzerGroup.order :'eid DESC'
-        const query = `SELECT x.*, y.host, y.path_hint, y.preview_hint FROM (SELECT ${sqlFields.join(', ')} FROM ${sqlTables.join(', ')} WHERE (${sqlWhereBase.join(' AND ')} AND (${sqlWhereFiletypes.join(' OR ')}))${(sqlWhereFilter.length > 0) ? ' AND (' + sqlWhereFilter.join(' AND ') + ')' : ''} ORDER BY ${sqlOrderBy} LIMIT ${(analyzerGroup && analyzerGroup.limit) ? analyzerGroup.limit : 100}) x LEFT JOIN (SELECT eid, host, path_hint, preview_hint FROM kanmi_records_cdn WHERE host = ${systemglobal.cdn_id}) y ON (x.eid = y.eid)`
+        const query = `SELECT x.*, y.host, y.path_hint, y.preview_hint, y.full_hint FROM (SELECT ${sqlFields.join(', ')} FROM ${sqlTables.join(', ')} WHERE (${sqlWhereBase.join(' AND ')} AND (${sqlWhereFiletypes.join(' OR ')}))${(sqlWhereFilter.length > 0) ? ' AND (' + sqlWhereFilter.join(' AND ') + ')' : ''} ORDER BY ${sqlOrderBy} LIMIT ${(analyzerGroup && analyzerGroup.limit) ? analyzerGroup.limit : 100}) x LEFT JOIN (SELECT eid, host, path_hint, preview_hint, full_hint FROM kanmi_records_cdn WHERE host = ${systemglobal.cdn_id} AND (preview_hint IS NOT NULL OR full_hint IS NOT NULL)) y ON (x.eid = y.eid)`
         console.log(`Selecting data for analyzer group...`, analyzerGroup);
 
         const messages = (await sqlPromiseSafe(query, true)).rows.map(e => {
-            const url = `${systemglobal.cdn_access_url}preview/${e.path_hint}/${e.preview_hint}`;
+            const url = `${systemglobal.cdn_access_url}preview/${e.path_hint}/${e.preview_hint || e.full_hint}`;
             console.log(url)
             return { url, ...e };
         })
