@@ -877,14 +877,10 @@
         const sqlFields = [
             'kanmi_records.eid',
             'kanmi_records.channel',
-            'kanmi_records_cdn.host',
-            'kanmi_records_cdn.path_hint',
-            'kanmi_records_cdn.preview_hint',
         ]
         const sqlTables = [
             'kanmi_records',
             'kanmi_channels',
-            'kanmi_records_cdn'
         ]
         const sqlWhereBase = [
             'kanmi_records.channel = kanmi_channels.channelid',
@@ -893,7 +889,6 @@
             'kanmi_records.attachment_extra IS NULL',
             'kanmi_records.hidden = 0',
             'kanmi_records.tags IS NULL',
-            `kanmi_records_cdn.host = ${systemglobal.cdn_id}`,
         ]
         const sqlWhereFiletypes = [
             "kanmi_records.attachment_name LIKE '%.jp%_'",
@@ -928,7 +923,7 @@
         }
 
         const sqlOrderBy = (analyzerGroup && analyzerGroup.order) ? analyzerGroup.order :'eid DESC'
-        const query = `SELECT ${sqlFields.join(', ')} FROM ${sqlTables.join(', ')} WHERE (${sqlWhereBase.join(' AND ')} AND (${sqlWhereFiletypes.join(' OR ')}))${(sqlWhereFilter.length > 0) ? ' AND (' + sqlWhereFilter.join(' AND ') + ')' : ''} ORDER BY ${sqlOrderBy} LIMIT ${(analyzerGroup && analyzerGroup.limit) ? analyzerGroup.limit : 100}`
+        const query = `SELECT x.*, y.host, y.path_hint, y.preview_hint FROM (SELECT ${sqlFields.join(', ')} FROM ${sqlTables.join(', ')} WHERE (${sqlWhereBase.join(' AND ')} AND (${sqlWhereFiletypes.join(' OR ')}))${(sqlWhereFilter.length > 0) ? ' AND (' + sqlWhereFilter.join(' AND ') + ')' : ''} ORDER BY ${sqlOrderBy} LIMIT ${(analyzerGroup && analyzerGroup.limit) ? analyzerGroup.limit : 100}) x LEFT JOIN (SELECT eid, host, path_hint, preview_hint FROM kanmi_records_cdn WHERE host = ${systemglobal.cdn_id}) y ON (x.eid = y.eid)`
         console.log(`Selecting data for analyzer group...`, analyzerGroup);
 
         const messages = (await sqlPromiseSafe(query, true)).rows.map(e => {
