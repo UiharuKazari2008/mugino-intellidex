@@ -928,6 +928,7 @@
 
         const messages = (await sqlPromiseSafe(query, true)).rows.map(e => {
             const url = `${systemglobal.cdn_access_url}preview/${e.path_hint}/${e.preview_hint}`;
+            console.log(url)
             return { url, ...e };
         })
         console.log(messages.length + ' items need to be tagged!')
