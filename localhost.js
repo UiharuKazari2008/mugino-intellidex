@@ -877,15 +877,14 @@
         const sqlFields = [
             'kanmi_records.eid',
             'kanmi_records.channel',
-            'kanmi_records.attachment_name',
-            'kanmi_records.attachment_hash',
-            'kanmi_records.cache_proxy',
-            'kanmi_records.sizeH',
-            'kanmi_records.sizeW',
+            'kanmi_records_cdn.host',
+            'kanmi_records_cdn.path_hint',
+            'kanmi_records_cdn.preview_hint',
         ]
         const sqlTables = [
             'kanmi_records',
             'kanmi_channels',
+            'kanmi_records_cdn'
         ]
         const sqlWhereBase = [
             'kanmi_records.channel = kanmi_channels.channelid',
@@ -893,7 +892,8 @@
             'kanmi_records.attachment_name IS NOT NULL',
             'kanmi_records.attachment_extra IS NULL',
             'kanmi_records.hidden = 0',
-            'kanmi_records.tags IS NULL'
+            'kanmi_records.tags IS NULL',
+            `kanmi_records_cdn.host = ${systemglobal.cdn_id}`,
         ]
         const sqlWhereFiletypes = [
             "kanmi_records.attachment_name LIKE '%.jp%_'",
@@ -932,21 +932,7 @@
         console.log(`Selecting data for analyzer group...`, analyzerGroup);
 
         const messages = (await sqlPromiseSafe(query, true)).rows.map(e => {
-            function getimageSizeParam() {
-            if (e.sizeH && e.sizeW && Discord_CDN_Accepted_Files.indexOf(e.attachment_name.split('.').pop().toLowerCase()) !== -1 && (e.sizeH > 512 || e.sizeW > 512)) {
-                let ih = 512;
-                let iw = 512;
-                if (e.sizeW >= e.sizeH) {
-                    iw = (e.sizeW * (512 / e.sizeH)).toFixed(0)
-                } else {
-                    ih = (e.sizeH * (512 / e.sizeW)).toFixed(0)
-                }
-                return `?width=${iw}&height=${ih}`
-            } else {
-                return ''
-            }
-        }
-            const url = (( e.cache_proxy) ? e.cache_proxy.startsWith('http') ? e.cache_proxy : `https://${(systemglobal.no_media_cdn || (activeFiles.has(e.eid) && (activeFiles.get(e.eid)) >= 2)) ? 'cdn.discordapp.com' : 'media.discordapp.net'}/attachments${e.cache_proxy}${(systemglobal.no_media_cdn || (activeFiles.has(e.eid) && (activeFiles.get(e.eid)) >= 2)) ? '' : getimageSizeParam()}` : (e.attachment_hash && e.attachment_name) ? `https://${(systemglobal.no_media_cdn || (activeFiles.has(e.eid) && (activeFiles.get(e.eid)) >= 2)) ? 'cdn.discordapp.com' : 'media.discordapp.net'}/attachments/` + ((e.attachment_hash.includes('/')) ? e.attachment_hash : `${e.channel}/${e.attachment_hash}/${e.attachment_name}${(systemglobal.no_media_cdn || (activeFiles.has(e.eid) && (activeFiles.get(e.eid)) >= 2)) ? '' : getimageSizeParam()}`) : undefined) + '';
+            const url = `${systemglobal.cdn_access_url}preview/${e.path_hint}/${e.preview_hint}`;
             return { url, ...e };
         })
         console.log(messages.length + ' items need to be tagged!')
