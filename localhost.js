@@ -875,6 +875,7 @@
     }
     async function queryForTags(analyzerGroup) {
         const sqlFields = [
+            'kanmi_records.id',
             'kanmi_records.eid',
             'kanmi_records.channel',
         ]
@@ -935,7 +936,6 @@
             } else if (e.mfull_hint) {
                 url = `${systemglobal.cdn_access_url}master/${e.path_hint}/${e.mfull_hint}`;
             }
-            console.log(url)
             return { url, ...e };
         })
         console.log(messages.length + ' items need to be tagged!')
@@ -1010,6 +1010,16 @@
                                     }
                                 } else {
                                     console.error(`Download failed, File size to small: ${url}`);
+                                    const eidData = (await sqlPromiseSafe(`SELECT eid FROM kanmi_records WHERE id = ?`, [e.id])).rows
+                                    if (eidData.length > 0) {
+                                        mqClient.cdnRequest({
+                                            messageIntent: "Reload",
+                                            messageData: {
+                                                ...eidData[0]
+                                            },
+                                            reCache: true
+                                        })
+                                    }
                                     ok(false);
                                 }
                             } catch (err) {

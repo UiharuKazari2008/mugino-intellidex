@@ -43,6 +43,20 @@ function clone(obj) {
     }
     return copy;
 }
+function cdnRequest(content) {
+    return new Promise(ok => {
+        let exchange = "kanmi.cdn";
+        let client = config.cdn_in || "inbox.cdn";
+        let cleanObject = clone(content)
+        if ( content.hasOwnProperty('itemFileData' ) ) {
+            delete cleanObject.itemFileData
+        }
+        publish(exchange, client, new Buffer.from(JSON.stringify(content), 'utf-8'), function (callback) {
+            ok(callback);
+        });
+    })
+
+}
 function publish(exchange, routingKey, content, callback) {
     try {
         pubChannel.publish(exchange, routingKey, content, { persistent: true },
@@ -102,4 +116,4 @@ function whenConnected() {
     startPublisher();
 }
 
-module.exports = { sendData };
+module.exports = { sendData, cdnRequest };
