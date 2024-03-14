@@ -244,6 +244,7 @@
             if (!isBootable) {
                 Logger.printLine("ClusterIO", "System is not active master", "warn");
                 shutdownComplete = true;
+                startServer();
             } else {
                 Logger.printLine("ClusterIO", "System active master", "info");
                 activeNode = true;
@@ -275,7 +276,7 @@
                         } else {
                             lastClusterCheckin = (new Date().getTime())
                             if (!jsonResponse.active) {
-                                if (!shutdownComplete) {
+                                if (activeNode) {
                                     Logger.printLine("ClusterIO", "System is not active, Shutting Down...", "warn");
                                     shutdownRequested = true;
                                     if (amqpConn)
