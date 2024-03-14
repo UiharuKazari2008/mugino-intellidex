@@ -215,6 +215,7 @@
             })
         }, 60000)
     }
+    let shutdownComplete = false;
     let lastClusterCheckin = (new Date().getTime());
     if (systemglobal.Watchdog_Host && systemglobal.Cluster_ID) {
         await new Promise(async (cont) => {
@@ -245,15 +246,18 @@
             }
             setInterval(async () => {
                 if (((new Date().getTime() - lastClusterCheckin) / 60000).toFixed(2) >= (systemglobal.Cluster_Comm_Loss_Time || 4.5)) {
-                    Logger.printLine("ClusterIO", "Cluster Manager Communication was lost, No longer listening!", "critical");
-                    shutdownRequested = true;
-                    if (amqpConn)
-                        amqpConn.close();
-                    clearTimeout(startEvaluating);
-                    startEvaluating = null;
-                    if (!gpuLocked)
-                        await processGPUWorkloads();
-                    await waitForGPUUnlock();
+                    if (!shutdownComplete) {
+                        Logger.printLine("ClusterIO", "Cluster Manager Communication was lost, No longer listening!", "critical");
+                        shutdownRequested = true;
+                        if (amqpConn)
+                            amqpConn.close();
+                        clearTimeout(startEvaluating);
+                        startEvaluating = null;
+                        if (!gpuLocked)
+                            await processGPUWorkloads();
+                        await waitForGPUUnlock();
+                        shutdownComplete = true;
+                    }
                 }
                 request.get(`http://${systemglobal.Watchdog_Host}/cluster/ping?id=${systemglobal.Cluster_ID}&entity=${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.system_name}`, async (err, res, body) => {
                     if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
@@ -265,15 +269,18 @@
                         } else {
                             lastClusterCheckin = (new Date().getTime())
                             if (!jsonResponse.active) {
-                                Logger.printLine("ClusterIO", "System is not active, Shutting Down...", "warn");
-                                shutdownRequested = true;
-                                if (amqpConn)
-                                    amqpConn.close();
-                                clearTimeout(startEvaluating);
-                                startEvaluating = null;
-                                if (!gpuLocked)
-                                    await processGPUWorkloads();
-                                await waitForGPUUnlock();
+                                if (!shutdownComplete) {
+                                    Logger.printLine("ClusterIO", "System is not active, Shutting Down...", "warn");
+                                    shutdownRequested = true;
+                                    if (amqpConn)
+                                        amqpConn.close();
+                                    clearTimeout(startEvaluating);
+                                    startEvaluating = null;
+                                    if (!gpuLocked)
+                                        await processGPUWorkloads();
+                                    await waitForGPUUnlock();
+                                    shutdownComplete = true;
+                                }
                             } else {
                                 Logger.printLine("ClusterIO", "System is now active master, Rebooting...", "warn");
                                 process.exit(1);
@@ -434,6 +441,7 @@
             if (!gpuLocked)
                 await processGPUWorkloads();
             await waitForGPUUnlock();
+            shutdownComplete = true;
             res.status(200).send('Shutdown OK');
         })
         app.get('/reset', async (req, res) => {
