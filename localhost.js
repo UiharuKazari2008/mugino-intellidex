@@ -248,18 +248,20 @@
                 Logger.printLine("ClusterIO", "System is not active master", "warn");
                 shutdownComplete = true;
                 startServer();
-                if (systemglobal.standby_node_url) {
-                    request.get(`http://${systemglobal.standby_node_url}`, async (err, res, body) => {
-                        if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
-                            console.error(err || res.body);
-                        }
-                    })
+                if (systemglobal.fan_reset_url) {
+                    setInterval(() => {
+                        request.get(`http://${systemglobal.fan_reset_url}`, async (err, res, body) => {
+                            if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
+                                console.error(err || res.body);
+                            }
+                        })
+                    }, 60000)
                 }
             } else {
                 Logger.printLine("ClusterIO", "System active master", "info");
                 activeNode = true;
-                if (systemglobal.active_node_url) {
-                    request.get(`http://${systemglobal.active_node_url}`, async (err, res, body) => {
+                if (systemglobal.fan_up_url) {
+                    request.get(`http://${systemglobal.fan_up_url}`, async (err, res, body) => {
                         if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
                             console.error(err || res.body);
                         }
