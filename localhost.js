@@ -218,6 +218,7 @@
     let activeNode = false;
     let shutdownComplete = false;
     let lastClusterCheckin = (new Date().getTime());
+    let checkinTimer = null;
     if (systemglobal.Watchdog_Host && systemglobal.Cluster_ID) {
         await new Promise(async (cont) => {
             const isBootable = await new Promise(ok => {
@@ -248,7 +249,7 @@
                 activeNode = true;
                 cont(true)
             }
-            setInterval(async () => {
+            checkinTimer = setInterval(async () => {
                 if (((new Date().getTime() - lastClusterCheckin) / 60000).toFixed(2) >= (systemglobal.Cluster_Comm_Loss_Time || 4.5)) {
                     if (!shutdownComplete) {
                         Logger.printLine("ClusterIO", "Cluster Manager Communication was lost, No longer listening!", "critical");
@@ -448,6 +449,7 @@
                 await processGPUWorkloads();
             await waitForGPUUnlock();
             shutdownComplete = true;
+            clearTimeout(checkinTimer);
             res.status(200).send('Shutdown OK');
         })
         app.get('/reset', async (req, res) => {
