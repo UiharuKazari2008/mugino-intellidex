@@ -240,6 +240,7 @@
             })
             if (!isBootable) {
                 Logger.printLine("ClusterIO", "System is not active master", "warn");
+                shutdownComplete = true;
             } else {
                 Logger.printLine("ClusterIO", "System active master", "info");
                 cont(true)
