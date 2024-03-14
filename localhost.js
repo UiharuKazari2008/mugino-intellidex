@@ -1,5 +1,5 @@
 (async () => {
-    const systemglobal = require('./config.json');
+    let systemglobal = require('./config.json');
     if (process.env.SYSTEM_NAME && process.env.SYSTEM_NAME.trim().length > 0)
         systemglobal.system_name = process.env.SYSTEM_NAME.trim()
     const facilityName = 'MuginoMIITS';
@@ -39,6 +39,88 @@
 
     app.use(express.static(path.join('./utils/models/')));
 
+    async function loadDatabaseCache() {
+        Logger.printLine("SQL", "Getting System Parameters", "debug")
+        const _systemparams = await db.query(`SELECT * FROM global_parameters WHERE (system_name = ? OR system_name IS NULL) AND (application = 'mugino' OR application IS NULL) ORDER BY system_name, application, account`, [systemglobal.system_name])
+        if (_systemparams.error) { Logger.printLine("SQL", "Error getting system parameter records!", "emergency", _systemparams.error); return false }
+        const systemparams_sql = _systemparams.rows.reverse();
+
+        if (systemparams_sql.length > 0) {
+            const _mq_account = systemparams_sql.filter(e => e.param_key === 'mq.login');
+            if (_mq_account.length > 0 && _mq_account[0].param_data) {
+                if (_mq_account[0].param_data.host)
+                    systemglobal.mq_host = _mq_account[0].param_data.host;
+                if (_mq_account[0].param_data.username)
+                    systemglobal.mq_user = _mq_account[0].param_data.username;
+                if (_mq_account[0].param_data.password)
+                    systemglobal.mq_pass = _mq_account[0].param_data.password;
+            }
+            // MQ Login - Required
+            // MQServer = "192.168.250.X"
+            // MQUsername = "eiga"
+            // MQPassword = ""
+            // mq.login = { "host" : "192.168.250.X", "username" : "eiga", "password" : "" }
+            const _watchdog_host = systemparams_sql.filter(e => e.param_key === 'watchdog.host');
+            if (_watchdog_host.length > 0 && _watchdog_host[0].param_value) {
+                systemglobal.Watchdog_Host = _watchdog_host[0].param_value;
+            }
+            // Watchdog Check-in Hostname:Port or IP:Port
+            // Watchdog_Host = "192.168.100.X"
+            // watchdog.host = "192.168.100.X"
+            const _watchdog_id = systemparams_sql.filter(e => e.param_key === 'watchdog.id');
+            if (_watchdog_id.length > 0 && _watchdog_id[0].param_value) {
+                systemglobal.Watchdog_ID = _watchdog_id[0].param_value;
+            }
+            // Watchdog Check-in Group ID
+            // Watchdog_ID = "main"
+            // watchdog.id = "main"
+            const _cluster_id = systemparams_sql.filter(e => e.param_key === 'cluster.id');
+            if (_cluster_id.length > 0 && _cluster_id[0].param_value) {
+                systemglobal.Cluster_ID = _cluster_id[0].param_value;
+            }
+            const _cluster_entity = systemparams_sql.filter(e => e.param_key === 'cluster.entity');
+            if (_cluster_entity.length > 0 && _cluster_entity[0].param_value) {
+                systemglobal.Cluster_Entity = _cluster_entity[0].param_value;
+            }
+            const _cluster_fail = systemparams_sql.filter(e => e.param_key === 'cluster.fail_time');
+            if (_cluster_fail.length > 0 && _cluster_fail[0].param_value) {
+                systemglobal.Cluster_Comm_Loss_Time = parseFloat(_cluster_fail[0].param_value.toString());
+            }
+
+            const _mq_discord_out = systemparams_sql.filter(e => e.param_key === 'mq.discord.out');
+            if (_mq_discord_out.length > 0 && _mq_discord_out[0].param_value) {
+                systemglobal.mq_discord_out = _mq_discord_out[0].param_value;
+            }
+            // Discord Outbox MQ - Required - Dynamic
+            // Discord_Out = "outbox.discord"
+            // mq.discord.out = "outbox.discord"
+            const _mq_pdp_in = systemparams_sql.filter(e => e.param_key === 'mq.pdp.out');
+            if (_mq_pdp_in.length > 0 && _mq_pdp_in[0].param_value) {
+                systemglobal.mq_mugino_in = _mq_pdp_in[0].param_value;
+            }
+            // Mugino Inbox MQ - Dynamic
+            // Mugino_In = "inbox.mugino"
+            // mq.pdp.out = "inbox.mugino"
+            const _mugino_config = systemparams_sql.filter(e => e.param_key === 'mugino.config');
+            if (_mugino_config.length > 0 && _mugino_config[0].param_data) {
+                if (_mugino_config[0].param_data.search)
+                    systemglobal.search = _mugino_config[0].param_data.search;
+                if (_mugino_config[0].param_data.rules)
+                    systemglobal.rules = _mugino_config[0].param_data.rules;
+                if (_mugino_config[0].param_data.pull_limit)
+                    systemglobal.pull_limit = _mugino_config[0].param_data.pull_limit;
+                if (_mugino_config[0].param_data.parallel_downloads)
+                    systemglobal.parallel_downloads = _mugino_config[0].param_data.parallel_downloads;
+            }
+            // Mugino Config
+
+        }
+
+        Logger.printLine("SQL", "All SQL Configuration records have been assembled!", "debug");
+        setTimeout(loadDatabaseCache, 1200000)
+    }
+    await loadDatabaseCache();
+
     console.log("Reading tags from database...");
     let exsitingTags = new Map();
     (await sqlPromiseSafe(`SELECT id, name FROM sequenzia_index_tags`)).rows.map(e => exsitingTags.set(e.name, e.id));
@@ -66,6 +148,7 @@
     console.log(`Loaded ${modelTags.size} tags from model`);
     const activeFiles = new Map();
     let init = false;
+
 
     Logger.printLine("Init", "Mugino Orchestrator Server", "debug");
     const baseKeyName = `mugino.${systemglobal.system_name}.`
@@ -278,9 +361,8 @@
                 amqpConn.close();
             clearTimeout(startEvaluating);
             startEvaluating = null;
-            if (!gpuLocked) {
+            if (!gpuLocked)
                 await processGPUWorkloads();
-            }
             await waitForGPUUnlock();
             res.status(200).send('Shutdown OK');
         })
