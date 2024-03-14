@@ -252,7 +252,7 @@
             }
             checkinTimer = setInterval(async () => {
                 if (((new Date().getTime() - lastClusterCheckin) / 60000).toFixed(2) >= (systemglobal.Cluster_Comm_Loss_Time || 4.5)) {
-                    if (!shutdownComplete) {
+                    if (active) {
                         Logger.printLine("ClusterIO", "Cluster Manager Communication was lost, No longer listening!", "critical");
                         shutdownRequested = true;
                         if (amqpConn)
