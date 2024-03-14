@@ -215,6 +215,7 @@
             })
         }, 60000)
     }
+    let activeNode = false;
     let shutdownComplete = false;
     let lastClusterCheckin = (new Date().getTime());
     if (systemglobal.Watchdog_Host && systemglobal.Cluster_ID) {
@@ -244,6 +245,7 @@
                 shutdownComplete = true;
             } else {
                 Logger.printLine("ClusterIO", "System active master", "info");
+                activeNode = true;
                 cont(true)
             }
             setInterval(async () => {
@@ -259,6 +261,7 @@
                             await processGPUWorkloads();
                         await waitForGPUUnlock();
                         shutdownComplete = true;
+                        activeNode = false;
                     }
                 }
                 request.get(`http://${systemglobal.Watchdog_Host}/cluster/ping?id=${systemglobal.Cluster_ID}&entity=${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.system_name}`, async (err, res, body) => {
@@ -282,8 +285,9 @@
                                         await processGPUWorkloads();
                                     await waitForGPUUnlock();
                                     shutdownComplete = true;
+                                    activeNode = false;
                                 }
-                            } else {
+                            } else if (!activeNode) {
                                 Logger.printLine("ClusterIO", "System is now active master, Rebooting...", "warn");
                                 process.exit(1);
                             }
