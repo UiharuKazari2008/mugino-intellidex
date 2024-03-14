@@ -120,6 +120,7 @@
         setTimeout(loadDatabaseCache, 1200000)
     }
     await loadDatabaseCache();
+    console.log(systemglobal);
 
     console.log("Reading tags from database...");
     let exsitingTags = new Map();
