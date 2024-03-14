@@ -322,6 +322,16 @@
 
     function startServer() {
         app.get('/reset', async (req, res) => {
+            shutdownRequested = true;
+            if (amqpConn)
+                amqpConn.close();
+            clearTimeout(startEvaluating);
+            startEvaluating = null;
+            if (!gpuLocked)
+                await processGPUWorkloads();
+            await waitForGPUUnlock();
+            shutdownComplete = true;
+            clearTimeout(checkinTimer);
             res.status(200).send('Bye');
             process.exit(1);
         })
