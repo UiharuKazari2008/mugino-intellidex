@@ -220,6 +220,9 @@
     let lastClusterCheckin = (new Date().getTime());
     let checkinTimer = null;
     if (systemglobal.Watchdog_Host && systemglobal.Cluster_ID) {
+        app.get('/node_state', async (req, res) => {
+            res.status(200).send(activeNode);
+        })
         await new Promise(async (cont) => {
             const isBootable = await new Promise(ok => {
                 request.get(`http://${systemglobal.Watchdog_Host}/cluster/init?id=${systemglobal.Cluster_ID}&entity=${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.system_name}`, async (err, res, body) => {
@@ -301,6 +304,9 @@
     }
 
     function startServer() {
+        app.get('/', async (req, res) => {
+            res.status(200).send("Mugino MIITS!");
+        })
         const server = app.listen(9052, '0.0.0.0',async function (err) {
             if (err) {
                 console.log('App listening error ', err);
@@ -436,10 +442,6 @@
         //const limiterbacklog = new RateLimiter(5, 5000);
         const amqp = require('amqplib/callback_api');
 
-
-        app.get('/', async (req, res) => {
-            res.status(200).send("Hello");
-        })
         app.get('/shutdown', async (req, res) => {
             shutdownRequested = true;
             if (amqpConn)
