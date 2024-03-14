@@ -368,6 +368,10 @@
             await waitForGPUUnlock();
             res.status(200).send('Shutdown OK');
         })
+        app.get('/reset', async (req, res) => {
+            res.status(200).send('OK');
+            process.exit(1);
+        })
 
         if (process.env.MQ_HOST && process.env.MQ_HOST.trim().length > 0)
             systemglobal.mq_host = process.env.MQ_HOST.trim()
