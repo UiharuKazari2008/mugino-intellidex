@@ -201,20 +201,74 @@
     let shutdownRequested = false;
     let model
 
-    if (systemglobal.Watchdog_Host && systemglobal.Watchdog_ID) {
-        console.log(`Registering with Watchdog with ID "${systemglobal.Watchdog_ID}" as Entity "${facilityName}-${systemglobal.system_name}"`)
-        request.get(`http://${systemglobal.Watchdog_Host}/watchdog/init?id=${systemglobal.Watchdog_ID}&entity=${facilityName}-${systemglobal.system_name}`, async (err, res) => {
+    if (systemglobal.Watchdog_Host && systemglobal.Watchdog_ID && !systemglobal.Cluster_ID) {
+        request.get(`http://${systemglobal.Watchdog_Host}/watchdog/init?id=${systemglobal.Watchdog_ID}&entity=${facilityName}-${systemglobal.SystemName}`, async (err, res) => {
             if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
                 console.error(`Failed to init watchdog server ${systemglobal.Watchdog_Host} as ${facilityName}:${systemglobal.Watchdog_ID}`);
             }
         })
         setInterval(() => {
-            request.get(`http://${systemglobal.Watchdog_Host}/watchdog/ping?id=${systemglobal.Watchdog_ID}&entity=${facilityName}-${systemglobal.system_name}`, async (err, res) => {
+            request.get(`http://${systemglobal.Watchdog_Host}/watchdog/ping?id=${systemglobal.Watchdog_ID}&entity=${facilityName}-${systemglobal.SystemName}`, async (err, res) => {
                 if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
                     console.error(`Failed to ping watchdog server ${systemglobal.Watchdog_Host} as ${facilityName}:${systemglobal.Watchdog_ID}`);
                 }
             })
         }, 60000)
+    }
+    if (systemglobal.Watchdog_Host && systemglobal.Cluster_ID) {
+        await new Promise(async (cont) => {
+            const isBootable = await new Promise(ok => {
+                request.get(`http://${systemglobal.Watchdog_Host}/cluster/init?id=${systemglobal.Cluster_ID}&entity=${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.SystemName}`, async (err, res, body) => {
+                    if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
+                        console.error(`Failed to init watchdog server ${systemglobal.Watchdog_Host} as ${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.SystemName}:${systemglobal.Cluster_ID}`);
+                        ok(systemglobal.Cluster_Global_Master || false);
+                    } else {
+                        const jsonResponse = JSON.parse(Buffer.from(body).toString());
+                        if (jsonResponse.error) {
+                            console.error(jsonResponse.error);
+                            ok(false);
+                        } else {
+                            if (!jsonResponse.active) {
+                                Logger.printLine("ClusterIO", "System is not active, Standing by...", "warn");
+                            }
+                            ok(jsonResponse.active);
+                        }
+                    }
+                })
+            })
+            if (!isBootable) {
+                Logger.printLine("ClusterIO", "System is not active master", "warn");
+            } else {
+                Logger.printLine("ClusterIO", "System active master", "info");
+            }
+            setInterval(() => {
+                if (((new Date().getTime() - lastClusterCheckin) / 60000).toFixed(2) >= (systemglobal.Cluster_Comm_Loss_Time || 4.5)) {
+                    Logger.printLine("ClusterIO", "Cluster Manager Communication was lost, No longer listening!", "critical");
+                }
+                request.get(`http://${systemglobal.Watchdog_Host}/cluster/ping?id=${systemglobal.Cluster_ID}&entity=${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.SystemName}`, async (err, res, body) => {
+                    if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
+                        console.error(`Failed to ping watchdog server ${systemglobal.Watchdog_Host} as ${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.SystemName}:${systemglobal.Cluster_ID}`);
+                    } else {
+                        const jsonResponse = JSON.parse(Buffer.from(body).toString());
+                        if (jsonResponse.error) {
+                            console.error(jsonResponse.error);
+                        } else {
+                            lastClusterCheckin = (new Date().getTime())
+                            /*if (!jsonResponse.active) {
+                                if (enableListening) {
+                                    Logger.printLine("ClusterIO", "System is not active, No longer listening!", "warn");
+                                    enableListening = false;
+                                }
+                            } else if (!enableListening) {
+                                Logger.printLine("ClusterIO", "System is now active master", "warn");
+                                enableListening = true;
+                            }*/
+                        }
+                    }
+                })
+            }, 30000)
+            cont(true)
+        })
     }
 
     function startServer() {
