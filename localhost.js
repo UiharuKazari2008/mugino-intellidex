@@ -41,7 +41,7 @@
 
     async function loadDatabaseCache() {
         Logger.printLine("SQL", "Getting System Parameters", "debug")
-        const _systemparams = await db.query(`SELECT * FROM global_parameters WHERE (system_name = ? OR system_name IS NULL) AND (application = 'mugino' OR application IS NULL) ORDER BY system_name, application, account`, [systemglobal.system_name])
+        const _systemparams = await sqlPromiseSafe(`SELECT * FROM global_parameters WHERE (system_name = ? OR system_name IS NULL) AND (application = 'mugino' OR application IS NULL) ORDER BY system_name, application, account`, [systemglobal.system_name])
         if (_systemparams.error) { Logger.printLine("SQL", "Error getting system parameter records!", "emergency", _systemparams.error); return false }
         const systemparams_sql = _systemparams.rows.reverse();
 
