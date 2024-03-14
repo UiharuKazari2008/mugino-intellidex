@@ -16,7 +16,6 @@
     const request = require('request').defaults({ encoding: null, jar: true });
     const { sqlPromiseSafe } = require("./utils/sqlClient");
     const Logger = require('./utils/logSystem');
-    const mqClient = require('./utils/mqAccess');
     const { DiscordSnowflake } = require('@sapphire/snowflake');
     const crypto = require('crypto');
     const tf = require('@tensorflow/tfjs-node');
@@ -121,6 +120,8 @@
     }
     await loadDatabaseCache();
     console.log(systemglobal);
+
+    const mqClient = require('./utils/mqAccess')(facilityName, systemglobal);
 
     console.log("Reading tags from database...");
     let exsitingTags = new Map();
