@@ -304,6 +304,10 @@
     }
 
     function startServer() {
+        app.get('/reset', async (req, res) => {
+            res.status(200).send('Bye');
+            process.exit(1);
+        })
         app.get('/', async (req, res) => {
             res.status(200).send("Mugino MIITS!");
         })
@@ -454,10 +458,6 @@
             shutdownComplete = true;
             clearTimeout(checkinTimer);
             res.status(200).send('Shutdown OK');
-        })
-        app.get('/reset', async (req, res) => {
-            res.status(200).send('OK');
-            process.exit(1);
         })
 
         if (process.env.MQ_HOST && process.env.MQ_HOST.trim().length > 0)
