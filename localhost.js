@@ -356,10 +356,7 @@
         while(gpuLocked) {
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
-        while((fs.readdirSync(systemglobal.deepbooru_output_path)).length > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, 15000));
     }
     function toFixed( v, d ) {
         //return (+(Math.round(+(v + 'e' + d)) + 'e' + -d)).toFixed(d);
