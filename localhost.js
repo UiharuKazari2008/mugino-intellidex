@@ -23,7 +23,7 @@
     const express = require('express');
     const jpeg = require('jpeg-js');
     const globalRunKey = crypto.randomBytes(5).toString("hex");
-
+    let amqpConn = null;
     const Discord_CDN_Accepted_Files = ['jpg','jpeg','jfif','png','webp','gif'];
     const nsfwClassTypes = {
         "Neutral": 1,
@@ -240,6 +240,7 @@
                 Logger.printLine("ClusterIO", "System is not active master", "warn");
             } else {
                 Logger.printLine("ClusterIO", "System active master", "info");
+                cont(true)
             }
             setInterval(() => {
                 if (((new Date().getTime() - lastClusterCheckin) / 60000).toFixed(2) >= (systemglobal.Cluster_Comm_Loss_Time || 4.5)) {
@@ -254,20 +255,26 @@
                             console.error(jsonResponse.error);
                         } else {
                             lastClusterCheckin = (new Date().getTime())
-                            /*if (!jsonResponse.active) {
+                            if (!jsonResponse.active) {
                                 if (enableListening) {
-                                    Logger.printLine("ClusterIO", "System is not active, No longer listening!", "warn");
-                                    enableListening = false;
+                                    Logger.printLine("ClusterIO", "System is not active, Shutting Down...", "warn");
+                                    shutdownRequested = true;
+                                    if (amqpConn)
+                                        amqpConn.close();
+                                    clearTimeout(startEvaluating);
+                                    startEvaluating = null;
+                                    if (!gpuLocked)
+                                        await processGPUWorkloads();
+                                    await waitForGPUUnlock();
                                 }
                             } else if (!enableListening) {
-                                Logger.printLine("ClusterIO", "System is now active master", "warn");
-                                enableListening = true;
-                            }*/
+                                Logger.printLine("ClusterIO", "System is now active master, Rebooting...", "warn");
+                                process.exit(1);
+                            }
                         }
                     }
                 })
             }, 30000)
-            cont(true)
         })
     }
 
@@ -406,7 +413,7 @@
         //const limiterlocal = new RateLimiter(1, 1000);
         //const limiterbacklog = new RateLimiter(5, 5000);
         const amqp = require('amqplib/callback_api');
-        let amqpConn = null;
+
 
         app.get('/', async (req, res) => {
             res.status(200).send("Hello");
