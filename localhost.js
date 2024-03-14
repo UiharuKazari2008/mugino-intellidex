@@ -226,6 +226,7 @@
                         ok(systemglobal.Cluster_Global_Master || false);
                     } else {
                         const jsonResponse = JSON.parse(Buffer.from(body).toString());
+                        console.log(jsonResponse);
                         if (jsonResponse.error) {
                             console.error(jsonResponse.error);
                             ok(false);
