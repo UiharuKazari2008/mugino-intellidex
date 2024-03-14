@@ -471,17 +471,20 @@
         const amqp = require('amqplib/callback_api');
 
         app.get('/shutdown', async (req, res) => {
+            res.status(200).write('Disconnect from AMPQ\n');
             shutdownRequested = true;
             if (amqpConn)
                 amqpConn.close();
             clearTimeout(startEvaluating);
             startEvaluating = null;
+            res.write('Cleaning Out\n');
             if (!gpuLocked)
                 await processGPUWorkloads();
             await waitForGPUUnlock();
+            res.write('OK\n');
             shutdownComplete = true;
             clearTimeout(checkinTimer);
-            res.status(200).send('Shutdown OK');
+            res.end();
         })
 
         if (process.env.MQ_HOST && process.env.MQ_HOST.trim().length > 0)
