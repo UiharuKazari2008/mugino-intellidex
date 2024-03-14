@@ -279,18 +279,20 @@
                         } else {
                             lastClusterCheckin = (new Date().getTime())
                             if (!jsonResponse.active) {
-                                Logger.printLine("ClusterIO", "System is not active, Shutting Down...", "warn");
-                                shutdownRequested = true;
-                                if (amqpConn)
-                                    amqpConn.close();
-                                clearTimeout(startEvaluating);
-                                startEvaluating = null;
-                                if (!gpuLocked)
-                                    await processGPUWorkloads();
-                                await waitForGPUUnlock();
-                                shutdownComplete = true;
-                                activeNode = false;
-                                process.exit(1);
+                                if (activeNode) {
+                                    Logger.printLine("ClusterIO", "System is not active, Shutting Down...", "warn");
+                                    shutdownRequested = true;
+                                    if (amqpConn)
+                                        amqpConn.close();
+                                    clearTimeout(startEvaluating);
+                                    startEvaluating = null;
+                                    if (!gpuLocked)
+                                        await processGPUWorkloads();
+                                    await waitForGPUUnlock();
+                                    shutdownComplete = true;
+                                    activeNode = false;
+                                    process.exit(1);
+                                }
                             } else if (!activeNode) {
                                 Logger.printLine("ClusterIO", "System is now active master, Rebooting...", "warn");
                                 process.exit(1);
