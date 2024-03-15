@@ -492,7 +492,7 @@
             startEvaluating = null;
             clearTimeout(checkinTimer);
             if (activeNode) {
-                request.get(`http://${systemglobal.Watchdog_Host}/cluster/force/search?id=${systemglobal.Watchdog_ID}`, async (err, res) => {
+                request.get(`http://${systemglobal.Watchdog_Host}/cluster/force/search?id=${systemglobal.Cluster_ID}`, async (err, res) => {
                     if (!err && res && res.statusCode && res.statusCode < 400) {
                         console.log("Entering Search Mode...")
                     }
