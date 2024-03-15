@@ -249,14 +249,6 @@
                 shutdownComplete = true;
                 app.get('/shutdown', async (req, res) => {
                     clearTimeout(checkinTimer);
-                    shutdownRequested = true;
-                    if (amqpConn)
-                        amqpConn.close();
-                    clearTimeout(startEvaluating);
-                    startEvaluating = null;
-                    if (!gpuLocked)
-                        await processGPUWorkloads();
-                    await waitForGPUUnlock();
                     shutdownComplete = true;
                     res.status(200).send('OK');
                     Logger.printLine("Cluter I/O", "Node has enter manual shutdown mode, Reset to rejoin cluster", "critical")
