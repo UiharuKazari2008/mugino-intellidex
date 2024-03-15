@@ -248,20 +248,17 @@
                 Logger.printLine("ClusterIO", "System is not active master", "warn");
                 shutdownComplete = true;
                 app.get('/shutdown', async (req, res) => {
-                    res.status(200).write('Disconnect from AMPQ\n');
                     clearTimeout(checkinTimer);
                     shutdownRequested = true;
                     if (amqpConn)
                         amqpConn.close();
                     clearTimeout(startEvaluating);
                     startEvaluating = null;
-                    res.write('Cleaning Out\n');
                     if (!gpuLocked)
                         await processGPUWorkloads();
                     await waitForGPUUnlock();
-                    res.write('OK\n');
                     shutdownComplete = true;
-                    res.end();
+                    res.status(200).send('OK');
                     Logger.printLine("Cluter I/O", "Node has enter manual shutdown mode, Reset to rejoin cluster", "critical")
                 })
                 startServer();
@@ -488,7 +485,6 @@
         const amqp = require('amqplib/callback_api');
 
         app.get('/shutdown', async (req, res) => {
-            res.status(200).write('Disconnect from AMPQ\n');
             shutdownRequested = true;
             if (amqpConn)
                 amqpConn.close();
@@ -502,14 +498,12 @@
                     }
                 })
             }
-            res.write('Cleaning Out\n');
             if (!gpuLocked)
                 await processGPUWorkloads();
             await waitForGPUUnlock();
-            res.write('OK\n');
             shutdownComplete = true;
             Logger.printLine("Cluter I/O", "Node has enter manual shutdown mode, Reset to rejoin cluster", "critical")
-            res.end();
+            res.status(200).send('OK');
         })
 
         if (process.env.MQ_HOST && process.env.MQ_HOST.trim().length > 0)
