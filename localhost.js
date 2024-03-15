@@ -494,7 +494,7 @@
             if (activeNode) {
                 request.get(`http://${systemglobal.Watchdog_Host}/cluster/force/search/?id=${systemglobal.Watchdog_ID}`, async (err, res) => {
                     if (!(err || res && res.statusCode !== undefined && res.statusCode !== 200)) {
-                        res.write('Entering Searching State\n');
+                        console.log("Entering Search Mode...")
                     }
                 })
             }
