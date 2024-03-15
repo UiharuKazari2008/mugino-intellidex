@@ -249,6 +249,7 @@
                 shutdownComplete = true;
                 app.get('/shutdown', async (req, res) => {
                     res.status(200).write('Disconnect from AMPQ\n');
+                    clearTimeout(checkinTimer);
                     shutdownRequested = true;
                     if (amqpConn)
                         amqpConn.close();
@@ -260,7 +261,6 @@
                     await waitForGPUUnlock();
                     res.write('OK\n');
                     shutdownComplete = true;
-                    clearTimeout(checkinTimer);
                     res.end();
                 })
                 startServer();
@@ -493,21 +493,21 @@
                 amqpConn.close();
             clearTimeout(startEvaluating);
             startEvaluating = null;
+            clearTimeout(checkinTimer);
+            if (activeNode) {
+                request.get(`http://${systemglobal.Watchdog_Host}/cluster/force/search/?id=${systemglobal.Watchdog_ID}`, async (err, res) => {
+                    if (!(err || res && res.statusCode !== undefined && res.statusCode !== 200)) {
+                        res.write('Entering Searching State\n');
+                    }
+                })
+            }
             res.write('Cleaning Out\n');
             if (!gpuLocked)
                 await processGPUWorkloads();
             await waitForGPUUnlock();
             res.write('OK\n');
             shutdownComplete = true;
-            clearTimeout(checkinTimer);
             res.end();
-            if (activeNode) {
-                request.get(`http://${systemglobal.Watchdog_Host}/cluster/force/search/?id=${systemglobal.Watchdog_ID}`, async (err, res) => {
-                    if (!(err || res && res.statusCode !== undefined && res.statusCode !== 200)) {
-                        console.log(`Entering Searchng Mode for Cluter Node`);
-                    }
-                })
-            }
         })
 
         if (process.env.MQ_HOST && process.env.MQ_HOST.trim().length > 0)
