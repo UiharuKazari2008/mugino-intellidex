@@ -262,6 +262,7 @@
                     res.write('OK\n');
                     shutdownComplete = true;
                     res.end();
+                    Logger.printLine("Cluter I/O", "Node has enter manual shutdown mode, Reset to rejoin cluster", "critical")
                 })
                 startServer();
                 if (systemglobal.fan_reset_url) {
@@ -507,6 +508,7 @@
             await waitForGPUUnlock();
             res.write('OK\n');
             shutdownComplete = true;
+            Logger.printLine("Cluter I/O", "Node has enter manual shutdown mode, Reset to rejoin cluster", "critical")
             res.end();
         })
 
