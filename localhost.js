@@ -224,7 +224,7 @@
             res.status(200).send(activeNode);
         })
         app.get('/state', async (req, res) => {
-            res.status(200).send((activeNode) ? "Active" : (!shutdownComplete) ? "Ready" : "Inactive");
+            res.status(200).send((activeNode) ? "Active" : (checkinTimer !== null) ? "Ready" : "Inactive");
         })
         await new Promise(async (cont) => {
             const isBootable = await new Promise(ok => {
