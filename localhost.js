@@ -223,6 +223,9 @@
         app.get('/node_state', async (req, res) => {
             res.status(200).send(activeNode);
         })
+        app.get('/state', async (req, res) => {
+            res.status(200).send(!shutdownComplete || activeNode);
+        })
         await new Promise(async (cont) => {
             const isBootable = await new Promise(ok => {
                 request.get(`http://${systemglobal.Watchdog_Host}/cluster/init?id=${systemglobal.Cluster_ID}&entity=${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.system_name}`, async (err, res, body) => {
