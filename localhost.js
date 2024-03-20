@@ -252,6 +252,7 @@
                 shutdownComplete = true;
                 app.get('/shutdown', async (req, res) => {
                     clearTimeout(checkinTimer);
+                    checkinTimer = null;
                     shutdownComplete = true;
                     res.status(200).send('OK');
                     Logger.printLine("Cluter I/O", "Node has enter manual shutdown mode, Reset to rejoin cluster", "critical")
@@ -341,6 +342,7 @@
             await waitForGPUUnlock();
             shutdownComplete = true;
             clearTimeout(checkinTimer);
+            checkinTimer = null;
             res.status(200).send('Bye');
             process.exit(1);
         })
@@ -486,6 +488,7 @@
             clearTimeout(startEvaluating);
             startEvaluating = null;
             clearTimeout(checkinTimer);
+            checkinTimer = null;
             if (activeNode) {
                 request.get(`http://${systemglobal.Watchdog_Host}/cluster/force/search?id=${systemglobal.Cluster_ID}`, async (err, res) => {
                     if (!err && res && res.statusCode && res.statusCode < 400) {
