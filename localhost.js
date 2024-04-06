@@ -334,6 +334,13 @@
     }
 
     function startServer() {
+        app.get('/stats', async (req, res) => {
+            res.status(200).json({
+                uptime: ((Date.now() - bootTime) / 60000).toFixed(2),
+                total: totalItems,
+                past_jobs: pastJobs,
+            });
+        })
         app.get('/reset', async (req, res) => {
             shutdownRequested = true;
             if (amqpConn)
@@ -376,13 +383,6 @@
         //return (+(Math.round(+(v + 'e' + d)) + 'e' + -d)).toFixed(d);
         return parseFloat(Math.round(v.toFixed(d+1)+'e'+d)+'e-'+d)
     }
-    app.get('/stats', async (req, res) => {
-        res.status(200).json({
-            uptime: ((Date.now() - bootTime) / 60000).toFixed(2),
-            total: totalItems,
-            past_jobs: pastJobs,
-        });
-    })
 
     const resultsWatcher = chokidar.watch(systemglobal.deepbooru_output_path, {
         ignored: /[\/\\]\./,
