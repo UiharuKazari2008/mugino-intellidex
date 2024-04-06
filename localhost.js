@@ -33,6 +33,9 @@
         "Hentai": 7
     }
     let active = true;
+    let pastJobs = [];
+    let totalItems = 0;
+    const bootTime = Date.now();
 
     const app = express();
 
@@ -373,6 +376,13 @@
         //return (+(Math.round(+(v + 'e' + d)) + 'e' + -d)).toFixed(d);
         return parseFloat(Math.round(v.toFixed(d+1)+'e'+d)+'e-'+d)
     }
+    app.get('/stats', async (req, res) => {
+        res.status(200).json({
+            uptime: ((Date.now() - bootTime) / 60000).toFixed(2),
+            total: totalItems,
+            past_jobs: pastJobs,
+        });
+    })
 
     const resultsWatcher = chokidar.watch(systemglobal.deepbooru_output_path, {
         ignored: /[\/\\]\./,
@@ -1027,6 +1037,7 @@
         if (!mittsIsActive) {
             mittsIsActive = true;
             console.log('Processing image tags via MIITS Client...')
+            const date = Date.now();
             return new Promise(async (resolve) => {
                 const startTime = Date.now();
                 (fs.readdirSync(systemglobal.deepbooru_input_path))
@@ -1038,7 +1049,8 @@
 
                         }
                     })
-                if ((fs.readdirSync(systemglobal.deepbooru_input_path)).length > 0) {
+                const items = (fs.readdirSync(systemglobal.deepbooru_input_path)).length;
+                if (items > 0) {
                     let ddOptions = ['evaluate', systemglobal.deepbooru_input_path, '--project-path', systemglobal.deepbooru_model_path, '--allow-folder', '--save-json', '--save-path', systemglobal.deepbooru_output_path, '--no-tag-output']
                     if (systemglobal.deepbooru_gpu)
                         ddOptions.push('--allow-gpu')
@@ -1067,6 +1079,11 @@
                     mittsIsActive = false;
                     resolve(true)
                 }
+                totalItems += items
+                pastJobs.push({
+                    date,
+                    items
+                })
             })
         } else {
             return true;
