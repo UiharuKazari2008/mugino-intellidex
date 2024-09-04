@@ -1295,7 +1295,7 @@
         for (let e of imageFile) {
             try {
                 const image = await sharp(fs.readFileSync(path.join(systemglobal.deepbooru_input_path, e))).metadata();
-                if (image.format !== undefined) {
+                if (image.formatimage.format === 'png') {
                     // Always convert the image to PNG
                     await sharp(fs.readFileSync(path.join(systemglobal.deepbooru_input_path, e)))
                         .png() // Convert to PNG
