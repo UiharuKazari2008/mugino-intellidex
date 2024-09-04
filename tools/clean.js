@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Path to the directory
-const directoryPath = path.join(__dirname, 'data', 'LocalQueue');
+const directoryPath = path.join('data', 'LocalQueue');
 
 // Function to process JSON files and remove 'itemFileData' property
 const processFiles = () => {
