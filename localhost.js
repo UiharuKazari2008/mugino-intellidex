@@ -767,7 +767,7 @@
                     }
                 } else if (msg.messageType === 'sfile' && msg.itemFileData && msg.itemFileName && ['jpg', 'jpeg', 'jfif', 'png'].indexOf(msg.itemFileName.split('.').pop().toLowerCase()) !== -1) {
                     Logger.printLine(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info");
-                    LocalQueue.setItem(fileId, { id: fileId, queue, message: { ...msg, itemFileData: undefined} })
+                    LocalQueue.setItem(fileId, { id: fileId, queue, message: msg })
                         .then(async function () {
                             const image = sharp(new Buffer.from(msg.itemFileData, 'base64'));
                             const metadata = await image.metadata();
