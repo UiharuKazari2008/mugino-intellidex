@@ -25,6 +25,7 @@
     const Discord_CDN_Accepted_Files = ['jpg','jpeg','jfif','png','webp','gif'];
     let active = true;
     let pastJobs = [];
+    let parsedImages = [];
     let totalItems = 0;
     const bootTime = Date.now();
 
@@ -1295,11 +1296,12 @@
         for (let e of imageFile) {
             try {
                 const image = await sharp(fs.readFileSync(path.join(systemglobal.deepbooru_input_path, e))).metadata();
-                if (image.format === 'png') {
+                if (image.format === 'png' && parsedImages.indexOf(e) === -1) {
                     // Always convert the image to PNG
                     await sharp(fs.readFileSync(path.join(systemglobal.deepbooru_input_path, e)))
                         .png() // Convert to PNG
                         .toFile(path.join(systemglobal.deepbooru_input_path, e));
+                    parsedImages.push(e);
                 }
             } catch (err) {
                 console.error(err.message);
