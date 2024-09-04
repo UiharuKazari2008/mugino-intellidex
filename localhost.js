@@ -1299,9 +1299,7 @@
                     // Always convert the image to PNG
                     await sharp(fs.readFileSync(path.join(systemglobal.deepbooru_input_path, e)))
                         .png() // Convert to PNG
-                        .toFile(path.join(systemglobal.deepbooru_input_path, `${path.parse(e).name}.png`));
-
-                    fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, e));
+                        .toFile(path.join(systemglobal.deepbooru_input_path, e));
                 }
             } catch (err) {
                 console.error(err.message);
