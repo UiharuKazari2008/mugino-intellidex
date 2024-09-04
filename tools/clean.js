@@ -27,7 +27,7 @@ const processFiles = () => {
 
                     // Remove 'itemFileData' property if it exists
                     if (jsonData.hasOwnProperty('itemFileData')) {
-                        delete jsonData.itemFileData;
+                        jsonData.itemFileData = undefined;
 
                         // Convert back to JSON and write it to the file
                         fs.writeFile(filePath, JSON.stringify(jsonData, null, 2), (err) => {
