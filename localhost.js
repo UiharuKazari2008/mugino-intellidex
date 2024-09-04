@@ -1291,6 +1291,7 @@
         return false;
     }
     async function validateImageInputs() {
+        console.log("Validating Image Inputs...")
         const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
         for (let e of imageFile) {
             try {
