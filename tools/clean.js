@@ -20,7 +20,7 @@ const processFilesSync = () => {
                 // Parse the JSON content
                 let jsonData = JSON.parse(data);
 
-                delete jsonData.itemFileData;
+                delete jsonData.value.message.itemFileData;
 
                 // Convert back to JSON and write it to the file
                 fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
