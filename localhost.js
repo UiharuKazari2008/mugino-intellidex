@@ -1304,7 +1304,7 @@
             } catch (err) {
                 console.error(err.message);
                 try {
-                    fs.unlink(path.join(systemglobal.deepbooru_input_path, e))
+                    fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, e))
                 } catch (e) {
                     console.error(err.message);
                 }
