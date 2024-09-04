@@ -2,49 +2,37 @@ const fs = require('fs');
 const path = require('path');
 
 // Path to the directory
-const directoryPath = path.join('data', 'LocalQueue');
+const directoryPath = path.join(__dirname, 'data', 'LocalQueue');
 
 // Function to process JSON files and remove 'itemFileData' property
-const processFiles = () => {
-    fs.readdir(directoryPath, (err, files) => {
-        if (err) {
-            return console.log('Unable to scan directory: ' + err);
-        }
+const processFilesSync = () => {
+    try {
+        const files = fs.readdirSync(directoryPath);
 
         // Loop through all files
         files.forEach((file) => {
             const filePath = path.join(directoryPath, file);
 
-            fs.readFile(filePath, 'utf8', (err, data) => {
-                if (err) {
-                    console.log('Error reading file:', file, err);
-                    return;
-                }
+            try {
+                // Read the JSON file
+                const data = fs.readFileSync(filePath, 'utf8');
 
-                try {
-                    // Parse the JSON content
-                    let jsonData = JSON.parse(data);
+                // Parse the JSON content
+                let jsonData = JSON.parse(data);
 
-                    // Remove 'itemFileData' property if it exists
-                    if (jsonData.hasOwnProperty('itemFileData')) {
-                        jsonData.itemFileData = undefined;
+                delete jsonData.itemFileData;
 
-                        // Convert back to JSON and write it to the file
-                        fs.writeFile(filePath, JSON.stringify(jsonData, null, 2), (err) => {
-                            if (err) {
-                                console.log('Error writing file:', file, err);
-                            } else {
-                                console.log('Updated file:', file);
-                            }
-                        });
-                    }
-                } catch (jsonErr) {
-                    console.log('Error parsing JSON file:', file, jsonErr);
-                }
-            });
+                // Convert back to JSON and write it to the file
+                fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
+                console.log('Updated file:', file);
+            } catch (err) {
+                console.log('Error processing file:', file, err);
+            }
         });
-    });
+    } catch (err) {
+        console.log('Unable to scan directory:', err);
+    }
 };
 
 // Start processing the files
-processFiles();
+processFilesSync();
