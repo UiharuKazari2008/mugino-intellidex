@@ -18,20 +18,11 @@
     const Logger = require('./utils/logSystem');
     const { DiscordSnowflake } = require('@sapphire/snowflake');
     const crypto = require('crypto');
-    const tf = require('@tensorflow/tfjs-node');
-    const nsfw = require('nsfwjs');
     const express = require('express');
     const jpeg = require('jpeg-js');
     const globalRunKey = crypto.randomBytes(5).toString("hex");
     let amqpConn = null;
     const Discord_CDN_Accepted_Files = ['jpg','jpeg','jfif','png','webp','gif'];
-    const nsfwClassTypes = {
-        "Neutral": 1,
-        "Drawing": 2,
-        "Sexy": 3,
-        "Porn": 5,
-        "Hentai": 7
-    }
     let active = true;
     let pastJobs = [];
     let totalItems = 0;
@@ -365,12 +356,6 @@
             } else {
                 console.log('App running at 9052')
             }
-
-            await tf.enableProdMode();
-            await tf.ready();
-
-            model = await nsfw.load(`http://localhost:9052/nsfw/`, {size: 224});
-            console.log('Loaded Model for NSFW Classification')
         });
     }
     async function waitForGPUUnlock() {
@@ -403,15 +388,9 @@
                 const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
                     .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
-                const nsfwResults = (imageFile) ? await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile))) : false;
                 let tagString = (Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ') + '; ');
                 let safety = null;
                 console.log(`Entity ${eid} has ${Object.keys(tagResults).length} tags!`);
-                if (nsfwResults) {
-                    tagString += nsfwResults.tags
-                    safety = nsfwResults.safety;
-                    console.error(`Entity ${eid} is classified as ${nsfwResults.safetyClassName}`);
-                }
                 await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ?, safety = ? WHERE eid = ?`, [ tagString, safety, eid ])
                 Object.keys(tagResults).map(async k => {
                     const r = tagResults[k];
@@ -435,11 +414,7 @@
                 const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
                     .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                 const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
-                const nsfwClass = (imageFile) ? await getSafetyClassification(path.join(systemglobal.deepbooru_input_path, (imageFile))) : false;
-                if (nsfwClass) {
-                    console.error(`Message ${key} is classified as ${nsfwClass.safetyClassName}`);
-                }
-                const approved = await parseResultsForMessage(key, tagResults, nsfwClass);
+                const approved = await parseResultsForMessage(key, tagResults);
                 console.error(`Message ${key} has ${Object.keys(tagResults).length} tags!`);
                 if (approved) {
                     mqClient.sendData( `${approved.destination}`, approved.message, function (ok) { });
@@ -1089,26 +1064,6 @@
             return true;
         }
     }
-    async function getSafetyClassification(file) {
-        try {
-            let img = await convertForTf(file);
-            const classes = await model.classify(img);
-            tf.dispose(img);
-            const threshold = 0.5;
-            const filteredPredictions = classes.filter(prediction => prediction.probability > threshold);
-            if (filteredPredictions.length === 0)
-                return false;
-            const val = filteredPredictions[0];
-            let safetyClassName = val.className;
-            let safety = nsfwClassTypes[safetyClassName];
-            if (safety >= 3 && val.probability > 0.75)
-                safety = safety + 1;
-            const tags = (filteredPredictions.map(k => `3/${k.probability.toFixed(4)}/st_${k.className.toLowerCase()}`).join('; ') + '; ');
-            return { safety, safetyClassName, tags }
-        } catch (e) {
-            return false;
-        }
-    }
     async function queryForTags(analyzerGroup) {
         const sqlFields = [
             'kanmi_records.id',
@@ -1286,7 +1241,7 @@
         }
         return false;
     }
-    async function parseResultsForMessage(key, results, nsfwResults) {
+    async function parseResultsForMessage(key, results) {
         if (key && results) {
             return await new Promise(ok => {
                 LocalQueue.getItem(key)
@@ -1310,15 +1265,12 @@
                                 return true;
                             })()
                             let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
-                            if (nsfwResults && nsfwResults.tags)
-                                tagString += nsfwResults.tags
                             if (result) {
                                 ok({
                                     destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
                                     message: {
                                         fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
                                         ...data.message,
-                                        messageSafety: (nsfwResults) ? nsfwResults.safety : undefined,
                                         messageTags: tagString
                                    }
                                 });
@@ -1352,22 +1304,6 @@
                 }
             }
         }
-
-    }
-    async function convertForTf(img) {
-        const rawImageData = await sharp(img).raw().jpeg().toBuffer()
-        const decoded = jpeg.decode(rawImageData);
-        const { width, height, data } = decoded
-        const buffer = new Uint8Array(width * height * 3);
-        let offset = 0;
-        for (let i = 0; i < buffer.length; i += 3) {
-            buffer[i] = data[offset];
-            buffer[i + 1] = data[offset + 1];
-            buffer[i + 2] = data[offset + 2];
-
-            offset += 4;
-        }
-        return tf.tensor3d(buffer, [height, width, 3]);
     }
 
     async function parseUntilDone(analyzerGroups) {
