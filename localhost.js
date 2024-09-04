@@ -876,14 +876,12 @@
         }
 
         startServer();
-        await validateImageInputs();
         await processGPUWorkloads();
         start();
         if (systemglobal.search)
             await parseUntilDone(systemglobal.search);
         console.log("First pass completed!")
     } else {
-        await validateImageInputs();
         await processGPUWorkloads();
         if (systemglobal.search)
             await parseUntilDone(systemglobal.search);
@@ -924,6 +922,7 @@
             startEvaluating = null;
         }
         if (!gpuLocked) {
+            await validateImageInputs();
             if (systemglobal.deepbooru_exec)
                 await queryImageTags();
             if (systemglobal.waifu2x_exec)
