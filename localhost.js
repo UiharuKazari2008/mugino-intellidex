@@ -1201,7 +1201,7 @@
                                     }
                                 } else {
                                     console.error(`Download failed, File size to small: ${url}`);
-                                    const eidData = (await sqlPromiseSafe(`SELECT eid FROM kanmi_records WHERE id = ?`, [e.id])).rows
+                                    const eidData = (await sqlPromiseSafe(`SELECT * FROM kanmi_records WHERE id = ?`, [e.id])).rows
                                     if (eidData.length > 0) {
                                         mqClient.cdnRequest({
                                             messageIntent: "Reload",
