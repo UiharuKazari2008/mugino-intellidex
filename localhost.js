@@ -1170,7 +1170,7 @@
                             ok(false)
                         } else {
                             try {
-                                if (body && body.length > 100) {
+                                if (body && body.length > 5000) {
                                     const mime = await new Promise(ext => {
                                         fileType.fromBuffer(body,function(err, result) {
                                             if (err) {
