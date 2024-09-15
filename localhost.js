@@ -1166,6 +1166,7 @@
                     }, async function (err, res, body) {
                         if (err) {
                             console.error(`Download failed: ${url}`, err);
+                            console.error(e);
                             ok(false)
                         } else {
                             try {
@@ -1180,10 +1181,10 @@
                                             }
                                         });
                                     })
-                                    if (systemglobal.allow_direct_write && mime.ext && ['png', 'jpg'].indexOf(mime.ext) !== -1) {
+                                    if (systemglobal.allow_direct_write && mime && mime.ext && ['png', 'jpg'].indexOf(mime.ext) !== -1) {
                                         fs.writeFileSync(path.join(systemglobal.deepbooru_input_path, `${e.eid}.${mime.ext}`), body);
                                         ok(true);
-                                    } else if ((!systemglobal.allow_direct_write && mime.ext && ['png', 'jpg', 'gif', 'tiff', 'webp'].indexOf(mime.ext) !== -1) || (mime.ext && ['gif', 'tiff', 'webp'].indexOf(mime.ext) !== -1)) {
+                                    } else if ((!systemglobal.allow_direct_write && mime && mime.ext && ['png', 'jpg', 'gif', 'tiff', 'webp'].indexOf(mime.ext) !== -1) || (mime && mime.ext && ['gif', 'tiff', 'webp'].indexOf(mime.ext) !== -1)) {
                                         await sharp(body)
                                             .toFormat('png')
                                             .toFile(path.join(systemglobal.deepbooru_input_path, `query-${e.eid}.png`), (err, info) => {
