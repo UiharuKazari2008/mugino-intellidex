@@ -26,6 +26,7 @@
     let active = true;
     let pastJobs = [];
     let parsedImages = [];
+    let warnedImages = [];
     let totalItems = 0;
     const bootTime = Date.now();
 
@@ -383,6 +384,8 @@
     });
     resultsWatcher
         .on('add', async function (filePath) {
+            if (warnedImages[path.basename(filePath)] !== undefined)
+                delete warnedImages[path.basename(filePath)];
             if (filePath.split('/').pop().split('\\').pop().endsWith('.json') && filePath.split('/').pop().split('\\').pop().startsWith('query-')) {
                 const eid = path.basename(filePath).split('query-').pop().split('.')[0];
                 const jsonFilePath = path.resolve(filePath);
@@ -1243,41 +1246,60 @@
         return false;
     }
     async function parseResultsForMessage(key, results) {
-        if (key && results) {
+        if (key) {
             return await new Promise(ok => {
                 LocalQueue.getItem(key)
                     .then(data => {
                         if (data.message) {
-                            const tags = Object.keys(results);
-                            const rules = ruleSets.get(data.message.messageChannelID);
-                            const result = (() => {
-                                if (rules && rules.accept && tags.filter(t => (rules.accept.indexOf(t) !== -1)).length === 0) {
-                                    console.error(`Did not find a approved tags "${tags.filter(t => rules.block.indexOf(t) !== -1).join(' ')}"`)
-                                    return false;
+                            if (results) {
+                                const tags = Object.keys(results);
+                                const rules = ruleSets.get(data.message.messageChannelID);
+                                const result = (() => {
+                                    if (rules && rules.accept && tags.filter(t => (rules.accept.indexOf(t) !== -1)).length === 0) {
+                                        console.error(`Did not find a approved tags "${tags.filter(t => rules.block.indexOf(t) !== -1).join(' ')}"`)
+                                        return false;
+                                    }
+                                    if (rules && rules.block && tags.filter(t => (rules.block.indexOf(t) !== -1)).length > 0) {
+                                        console.error(`Found a blocked tags "${tags.filter(t => rules.block.indexOf(t) !== -1).join(' ')}"`)
+                                        return false;
+                                    }
+                                    if (rules && rules.block_pairs && rules.block_pairs.map(ph => ph.map(p => tags.filter(t => (p.indexOf(t) !== -1)).length).filter(g => !g).length).filter(h => h === 0).length > 0) {
+                                        console.error(`Found a blocked pair of tags "${rules.block_pairs.join(' + ')}"`)
+                                        return false;
+                                    }
+                                    return true;
+                                })()
+                                let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
+                                if (result) {
+                                    ok({
+                                        destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
+                                        message: {
+                                            fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
+                                            ...data.message,
+                                            messageTags: tagString
+                                        }
+                                    });
+                                } else {
+                                    console.error(`Bypassing, Unable to parse tags for ${key}`);
+                                    ok({
+                                        destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
+                                        message: {
+                                            fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
+                                            ...data.message
+                                        }
+                                    });
                                 }
-                                if (rules && rules.block && tags.filter(t => (rules.block.indexOf(t) !== -1)).length > 0) {
-                                    console.error(`Found a blocked tags "${tags.filter(t => rules.block.indexOf(t) !== -1).join(' ')}"`)
-                                    return false;
-                                }
-                                if (rules && rules.block_pairs && rules.block_pairs.map(ph => ph.map(p => tags.filter(t => (p.indexOf(t) !== -1)).length).filter(g => !g).length).filter(h => h === 0).length > 0) {
-                                    console.error(`Found a blocked pair of tags "${rules.block_pairs.join(' + ')}"`)
-                                    return false;
-                                }
-                                return true;
-                            })()
-                            let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
-                            if (result) {
+                            } else {
+                                console.error(`Bypassing ${key}, No tags provided`);
                                 ok({
                                     destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
                                     message: {
                                         fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
-                                        ...data.message,
-                                        messageTags: tagString
-                                   }
+                                        ...data.message
+                                    }
                                 });
-                            } else {
-                                ok(false);
                             }
+
                         } else {
                             console.error(`Unexpectedly Failed to get message data for key ${key}`)
                             ok(false);
@@ -1303,13 +1325,24 @@
                         .png() // Convert to PNG
                         .toFile(path.join(systemglobal.deepbooru_input_path, e));
                     parsedImages.push(e);
+                    warnedImages[e] = totalItems;
                 }
             } catch (err) {
-                console.error(err.message);
-                try {
-                    fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, e))
-                } catch (e) {
-                    console.error(err.message);
+                if (warnedImages[e] !== undefined && warnedImages[e] < totalItems) {
+                    console.error(`Image is invalid: ${e}`, err.message);
+                    try {
+                        if (e.includes('message-')) {
+                            const key = e.split('message-').pop().split('.')[0];
+                            const a = await parseResultsForMessage(key);
+                            mqClient.sendData( `${a.destination}`, a.message, function (ok) { });
+                        } else {
+                            fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, e));
+                        }
+                    } catch (e) {
+                        console.error(err.message);
+                    }
+                } else {
+                    console.log(`Image may be invalid (Marked for catch): ${e}`, err.message);
                 }
             }
         }
