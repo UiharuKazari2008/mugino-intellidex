@@ -1326,7 +1326,6 @@
                         .png() // Convert to PNG
                         .toFile(path.join(systemglobal.deepbooru_input_path, e));
                     parsedImages.push(e);
-                    warnedImages[e] = totalItems;
                 }
             } catch (err) {
                 if (warnedImages[e] !== undefined && warnedImages[e] < totalItems) {
@@ -1343,6 +1342,7 @@
                         console.error(err.message);
                     }
                 } else {
+                    warnedImages[e] = totalItems;
                     console.log(`Image may be invalid (Marked for catch): ${e}`, err.message);
                 }
             }
