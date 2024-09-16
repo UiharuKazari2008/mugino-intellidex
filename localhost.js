@@ -1057,11 +1057,11 @@
                     mittsIsActive = false;
                     resolve(true)
                 }
-                totalItems += items
                 pastJobs.push({
                     date,
                     items
                 })
+                totalItems += items || 1
             })
         } else {
             return true;
