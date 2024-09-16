@@ -1335,9 +1335,8 @@
                             const key = e.split('message-').pop().split('.')[0];
                             const a = await parseResultsForMessage(key);
                             mqClient.sendData( `${a.destination}`, a.message, function (ok) { });
-                        } else {
-                            fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, e));
                         }
+                        fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, e));
                     } catch (e) {
                         console.error(err.message);
                     }
