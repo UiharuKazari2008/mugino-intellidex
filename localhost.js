@@ -1045,6 +1045,7 @@
                         if (code !== 0) {
                             console.error(`Mugino Meltdown! MIITS reported a error during tagging operation!`);
                             mittsIsActive = false;
+                            totalItems += 1
                             resolve(false)
                         } else {
                             console.log(`Tagging Completed in ${((Date.now() - startTime) / 1000).toFixed(0)} sec!`);
