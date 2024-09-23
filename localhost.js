@@ -1431,7 +1431,15 @@
                         noResults++;
                     console.log('Search Jobs Completed!, Starting MIITS Tagger...');
                 } else {
-                    noResults++;
+                    const existingFiles = [
+                        ...new Set([
+                            ...((systemglobal.holding_path) ? fs.readdirSync(systemglobal.holding_path).map(e => e.split('.')[0]) : []),
+                            ...fs.readdirSync(systemglobal.deepbooru_input_path).map(e => e.split('.')[0]),
+                            ...fs.readdirSync(systemglobal.deepbooru_output_path).map(e => e.split('.')[0])
+                        ])
+                    ]
+                    if (existingFiles.length === 0)
+                        noResults++;
                     console.log('Starting MIITS Tagger...');
                 }
                 clearTimeout(startEvaluating);
