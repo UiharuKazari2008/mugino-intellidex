@@ -206,6 +206,108 @@
     let runTimer = null;
     let shutdownRequested = false;
     let model
+    let watchEnabled = false;
+    async function watchResults() {
+        if (!watchEnabled) {
+            watchEnabled = true;
+            const resultsWatcher = chokidar.watch(systemglobal.deepbooru_output_path, {
+                ignored: /[\/\\]\./,
+                persistent: true,
+                usePolling: true,
+                awaitWriteFinish: {
+                    stabilityThreshold: 2000,
+                    pollInterval: 100
+                },
+                depth: 1,
+                ignoreInitial: false
+            });
+            resultsWatcher
+                .on('add', async function (filePath) {
+                    if (warnedImages[path.basename(filePath)] !== undefined)
+                        delete warnedImages[path.basename(filePath)];
+                    if (filePath.split('/').pop().split('\\').pop().endsWith('.json') && filePath.split('/').pop().split('\\').pop().startsWith('query-')) {
+                        const eid = path.basename(filePath).split('query-').pop().split('.')[0];
+                        const jsonFilePath = path.resolve(filePath);
+                        const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
+                            .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
+                        const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
+                        let tagString = (Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ') + '; ');
+                        let safety = null;
+                        console.log(`Entity ${eid} has ${Object.keys(tagResults).length} tags!`);
+                        await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ?, safety = ? WHERE eid = ?`, [tagString, safety, eid])
+                        Object.keys(tagResults).map(async k => {
+                            const r = tagResults[k];
+                            await addTagForEid(eid, k, r);
+                        });
+                        try {
+                            fs.unlinkSync(jsonFilePath);
+                        } catch (e) {
+
+                        }
+                        try {
+                            if (imageFile)
+                                fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
+                        } catch (e) {
+
+                        }
+                        activeFiles.delete(eid);
+                    } else if (filePath.split('/').pop().split('\\').pop().endsWith('.json') && filePath.split('/').pop().split('\\').pop().startsWith('message-')) {
+                        const key = path.basename(filePath).split('message-').pop().split('.')[0];
+                        const jsonFilePath = path.resolve(filePath);
+                        const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
+                            .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
+                        const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
+                        const approved = await parseResultsForMessage(key, tagResults);
+                        console.error(`Message ${key} has ${Object.keys(tagResults).length} tags!`);
+                        if (approved) {
+                            mqClient.sendData(`${approved.destination}`, approved.message, function (ok) {
+                            });
+                            console.error(`Message ${key} was approved!`);
+                        } else {
+                            console.error(`Message ${key} was denied!`);
+                        }
+                        try {
+                            fs.unlinkSync(jsonFilePath);
+                        } catch (e) {
+
+                        }
+                        try {
+                            if (imageFile)
+                                fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
+                        } catch (e) {
+
+                        }
+                        await LocalQueue.removeItem(key);
+                    } else if ((filePath.split('/').pop().split('\\').pop().endsWith('.jpg') || filePath.split('/').pop().split('\\').pop().endsWith('.png')) && filePath.split('/').pop().split('\\').pop().startsWith('upscale-')) {
+                        const key = path.basename(filePath).split('upscale-').pop().split('.')[0];
+                        console.error(`Message ${key} has been upscaled!`);
+
+                        mqClient.sendData(`${approved.destination}`, approved.message, function (ok) {
+                        });
+                        try {
+                            fs.unlinkSync(filePath);
+                        } catch (e) {
+
+                        }
+                        const imageFile = fs.readdirSync(systemglobal.waifu2x_input_path)
+                            .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
+                        try {
+                            if (imageFile)
+                                fs.unlinkSync(path.join(systemglobal.waifu2x_input_path, (imageFile)));
+                        } catch (e) {
+
+                        }
+                        await UpscaleQueue.removeItem(key);
+                    }
+                })
+                .on('error', function (error) {
+                    console.error(error);
+                })
+                .on('ready', function () {
+                    console.log("MIITS Results Watcher Ready!")
+                });
+        }
+    }
 
     if (systemglobal.Watchdog_Host && systemglobal.Watchdog_ID && !systemglobal.Cluster_ID) {
         request.get(`http://${systemglobal.Watchdog_Host}/watchdog/init?id=${systemglobal.Watchdog_ID}&entity=${facilityName}-${systemglobal.system_name}`, async (err, res) => {
@@ -383,108 +485,6 @@
         return parseFloat(Math.round(v.toFixed(d+1)+'e'+d)+'e-'+d)
     }
 
-    let watchEnabled = false;
-    async function watchResults() {
-        if (!watchEnabled) {
-            watchEnabled = true;
-            const resultsWatcher = chokidar.watch(systemglobal.deepbooru_output_path, {
-                ignored: /[\/\\]\./,
-                persistent: true,
-                usePolling: true,
-                awaitWriteFinish: {
-                    stabilityThreshold: 2000,
-                    pollInterval: 100
-                },
-                depth: 1,
-                ignoreInitial: false
-            });
-            resultsWatcher
-                .on('add', async function (filePath) {
-                    if (warnedImages[path.basename(filePath)] !== undefined)
-                        delete warnedImages[path.basename(filePath)];
-                    if (filePath.split('/').pop().split('\\').pop().endsWith('.json') && filePath.split('/').pop().split('\\').pop().startsWith('query-')) {
-                        const eid = path.basename(filePath).split('query-').pop().split('.')[0];
-                        const jsonFilePath = path.resolve(filePath);
-                        const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
-                            .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
-                        const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
-                        let tagString = (Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ') + '; ');
-                        let safety = null;
-                        console.log(`Entity ${eid} has ${Object.keys(tagResults).length} tags!`);
-                        await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ?, safety = ? WHERE eid = ?`, [tagString, safety, eid])
-                        Object.keys(tagResults).map(async k => {
-                            const r = tagResults[k];
-                            await addTagForEid(eid, k, r);
-                        });
-                        try {
-                            fs.unlinkSync(jsonFilePath);
-                        } catch (e) {
-
-                        }
-                        try {
-                            if (imageFile)
-                                fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
-                        } catch (e) {
-
-                        }
-                        activeFiles.delete(eid);
-                    } else if (filePath.split('/').pop().split('\\').pop().endsWith('.json') && filePath.split('/').pop().split('\\').pop().startsWith('message-')) {
-                        const key = path.basename(filePath).split('message-').pop().split('.')[0];
-                        const jsonFilePath = path.resolve(filePath);
-                        const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
-                            .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
-                        const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
-                        const approved = await parseResultsForMessage(key, tagResults);
-                        console.error(`Message ${key} has ${Object.keys(tagResults).length} tags!`);
-                        if (approved) {
-                            mqClient.sendData(`${approved.destination}`, approved.message, function (ok) {
-                            });
-                            console.error(`Message ${key} was approved!`);
-                        } else {
-                            console.error(`Message ${key} was denied!`);
-                        }
-                        try {
-                            fs.unlinkSync(jsonFilePath);
-                        } catch (e) {
-
-                        }
-                        try {
-                            if (imageFile)
-                                fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
-                        } catch (e) {
-
-                        }
-                        await LocalQueue.removeItem(key);
-                    } else if ((filePath.split('/').pop().split('\\').pop().endsWith('.jpg') || filePath.split('/').pop().split('\\').pop().endsWith('.png')) && filePath.split('/').pop().split('\\').pop().startsWith('upscale-')) {
-                        const key = path.basename(filePath).split('upscale-').pop().split('.')[0];
-                        console.error(`Message ${key} has been upscaled!`);
-
-                        mqClient.sendData(`${approved.destination}`, approved.message, function (ok) {
-                        });
-                        try {
-                            fs.unlinkSync(filePath);
-                        } catch (e) {
-
-                        }
-                        const imageFile = fs.readdirSync(systemglobal.waifu2x_input_path)
-                            .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
-                        try {
-                            if (imageFile)
-                                fs.unlinkSync(path.join(systemglobal.waifu2x_input_path, (imageFile)));
-                        } catch (e) {
-
-                        }
-                        await UpscaleQueue.removeItem(key);
-                    }
-                })
-                .on('error', function (error) {
-                    console.error(error);
-                })
-                .on('ready', function () {
-                    console.log("MIITS Results Watcher Ready!")
-                });
-        }
-    }
     watchResults();
     if (systemglobal.mq_mugino_in) {
         //const RateLimiter = require('limiter').RateLimiter;
