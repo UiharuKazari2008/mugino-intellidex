@@ -1315,11 +1315,32 @@
         return false;
     }
     async function validateImageInputs() {
-        console.log("Validating Image Inputs...")
+        console.log("Validating Image Inputs...");
+
+        // Check if holding_path is set
+        if (systemglobal.holding_path) {
+            const inputFiles = fs.readdirSync(systemglobal.deepbooru_input_path);
+            if (inputFiles.length > 0) {
+                console.log(`${inputFiles.length} files are pending! Skipping validation of images.`);
+                return;
+            }
+
+            const holdingFiles = fs.readdirSync(systemglobal.holding_path);
+            if (holdingFiles.length > 150) {
+                console.log(`There are ${holdingFiles.length} files pending. Processing first 150 files.`);
+            }
+
+            // Move up to 150 files to the deepbooru_input_path
+            const filesToMove = holdingFiles.slice(0, 150);
+            for (let file of filesToMove) {
+                fs.renameSync(path.join(systemglobal.holding_path, file), path.join(systemglobal.deepbooru_input_path, file));
+            }
+        }
+
         const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
         for (let e of imageFile) {
             try {
-                const image = await sharp(fs.readFileSync(path.join(systemglobal.deepbooru_input_path, e))).metadata();
+                let image = await sharp(fs.readFileSync(path.join(systemglobal.deepbooru_input_path, e))).metadata();
                 if (image.format === 'png' && parsedImages.indexOf(e) === -1) {
                     // Always convert the image to PNG
                     await sharp(fs.readFileSync(path.join(systemglobal.deepbooru_input_path, e)))
@@ -1327,6 +1348,7 @@
                         .toFile(path.join(systemglobal.deepbooru_input_path, e));
                     parsedImages.push(e);
                 }
+                image = null;
             } catch (err) {
                 if (warnedImages[e] !== undefined && warnedImages[e] < totalItems) {
                     console.error(`Image is invalid: ${e}`, err.message);
