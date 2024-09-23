@@ -246,6 +246,7 @@
             if (!isBootable) {
                 Logger.printLine("ClusterIO", "System is not active master", "warn");
                 shutdownComplete = true;
+                await processGPUWorkloads();
                 app.get('/shutdown', async (req, res) => {
                     clearTimeout(checkinTimer);
                     checkinTimer = null;
