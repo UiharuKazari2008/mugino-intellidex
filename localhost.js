@@ -31,9 +31,13 @@
     const bootTime = Date.now();
 
     if (fs.existsSync(path.join('./', 'watchedFiles.json'))) {
-        const json = JSON.parse(fs.readFileSync(path.join('./', 'watchedFiles.json')).toString());
-        if (json.catchList)
-            warnedImages = json.catchList;
+        try {
+            const json = JSON.parse(fs.readFileSync(path.join('./', 'watchedFiles.json')).toString());
+            if (json.catchList)
+                warnedImages = json.catchList;
+        } catch (e) {
+            cobnsole.error("Error Reading Catch List: ", e.message)
+        }
     }
 
     const app = express();
