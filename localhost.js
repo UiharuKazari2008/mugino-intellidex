@@ -1142,7 +1142,7 @@
                 ...fs.readdirSync(systemglobal.deepbooru_output_path).map(e => e.split('.')[0])
             ])
         ]
-        messages.filter(e => existingFiles.indexOf(e.eid.toString()) === -1).map((e,i) => { downlaods[i] = e });
+        messages.filter(e => !!e.url && existingFiles.indexOf(e.eid.toString()) === -1).map((e,i) => { downlaods[i] = e });
         if (messages.length === 0)
             return true;
         while (Object.keys(downlaods).length !== 0) {
