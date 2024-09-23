@@ -1327,12 +1327,12 @@
             }
 
             const holdingFiles = fs.readdirSync(systemglobal.holding_path);
-            if (holdingFiles.length > 150) {
-                console.log(`There are ${holdingFiles.length} files pending. Processing first 150 files.`);
+            if (holdingFiles.length > (systemglobal.max_load || 150)) {
+                console.log(`There are ${holdingFiles.length} files pending. Processing first ${(systemglobal.max_load || 150)} files.`);
             }
 
             // Move up to 150 files to the deepbooru_input_path
-            const filesToMove = holdingFiles.slice(0, 150);
+            const filesToMove = holdingFiles.slice(0, (systemglobal.max_load || 150));
             for (let file of filesToMove) {
                 fs.renameSync(path.join(systemglobal.holding_path, file), path.join(systemglobal.deepbooru_input_path, file));
             }
