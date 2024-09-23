@@ -30,6 +30,12 @@
     let totalItems = 0;
     const bootTime = Date.now();
 
+    if (fs.existsSync(path.join('./', 'watchedFiles.json'))) {
+        const json = JSON.parse(fs.readFileSync(path.join('./', 'watchedFiles.json')).toString());
+        if (json.catchList)
+            warnedImages = json.catchList;
+    }
+
     const app = express();
 
     app.use(express.static(path.join('./utils/models/')));
@@ -1370,6 +1376,7 @@
                 }
             }
         }
+        fs.writeFileSync(path.join('./', 'watchedFiles.json'), JSON.stringify({ catchList: warnedImages}))
     }
 
     async function parseUntilDone(analyzerGroups) {
