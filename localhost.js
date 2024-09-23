@@ -804,7 +804,7 @@
                                 await image
                                     .toFormat('png')
                                     .withMetadata()
-                                    .toFile(path.join(systemglobal.deepbooru_input_path, `message-${fileId}.png`), (err, info) => {
+                                    .toFile(path.join(systemglobal.holding_path || systemglobal.deepbooru_input_path, `message-${fileId}.png`), (err, info) => {
                                         if (err) {
                                             Logger.printLine("SaveFile", `Error when saving the file ${fileId}`, "error")
                                             console.error(err);
@@ -1137,6 +1137,7 @@
         let downlaods = {}
         const existingFiles = [
             ...new Set([
+                    ...((systemglobal.holding_path) ? fs.readdirSync(systemglobal.systemglobal.holding_path).map(e => e.split('.')[0]) : []),
                 ...fs.readdirSync(systemglobal.deepbooru_input_path).map(e => e.split('.')[0]),
                 ...fs.readdirSync(systemglobal.deepbooru_output_path).map(e => e.split('.')[0])
             ])
@@ -1186,12 +1187,12 @@
                                         });
                                     })
                                     if (systemglobal.allow_direct_write && mime && mime.ext && ['png', 'jpg'].indexOf(mime.ext) !== -1) {
-                                        fs.writeFileSync(path.join(systemglobal.deepbooru_input_path, `${e.eid}.${mime.ext}`), body);
+                                        fs.writeFileSync(path.join(systemglobal.holding_path || systemglobal.deepbooru_input_path, `${e.eid}.${mime.ext}`), body);
                                         ok(true);
                                     } else if ((!systemglobal.allow_direct_write && mime && mime.ext && ['png', 'jpg', 'gif', 'tiff', 'webp'].indexOf(mime.ext) !== -1) || (mime && mime.ext && ['gif', 'tiff', 'webp'].indexOf(mime.ext) !== -1)) {
                                         await sharp(body)
                                             .toFormat('png')
-                                            .toFile(path.join(systemglobal.deepbooru_input_path, `query-${e.eid}.png`), (err, info) => {
+                                            .toFile(path.join(systemglobal.holding_path || systemglobal.deepbooru_input_path, `query-${e.eid}.png`), (err, info) => {
                                                 if (err) {
                                                     console.error(`Failed to convert ${e.eid} to PNG file`, err);
                                                     ok(false);
