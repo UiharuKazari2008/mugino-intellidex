@@ -36,7 +36,7 @@
             if (json.catchList)
                 warnedImages = json.catchList;
         } catch (e) {
-            cobnsole.error("Error Reading Catch List: ", e.message)
+            console.error("Error Reading Catch List: ", e.message)
         }
     }
 
