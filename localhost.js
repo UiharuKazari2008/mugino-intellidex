@@ -1137,7 +1137,7 @@
         let downlaods = {}
         const existingFiles = [
             ...new Set([
-                    ...((systemglobal.holding_path) ? fs.readdirSync(systemglobal.systemglobal.holding_path).map(e => e.split('.')[0]) : []),
+                    ...((systemglobal.holding_path) ? fs.readdirSync(systemglobal.holding_path).map(e => e.split('.')[0]) : []),
                 ...fs.readdirSync(systemglobal.deepbooru_input_path).map(e => e.split('.')[0]),
                 ...fs.readdirSync(systemglobal.deepbooru_output_path).map(e => e.split('.')[0])
             ])
