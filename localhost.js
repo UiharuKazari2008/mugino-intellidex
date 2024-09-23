@@ -1333,19 +1333,18 @@
         if (systemglobal.holding_path) {
             const inputFiles = fs.readdirSync(systemglobal.deepbooru_input_path);
             if (inputFiles.length > 0) {
-                console.log(`${inputFiles.length} files are pending! Skipping validation of images.`);
-                return;
-            }
+                console.log(`${inputFiles.length} files are pending! Skipping loading of images.`);
+            } else {
+                const holdingFiles = fs.readdirSync(systemglobal.holding_path);
+                if (holdingFiles.length > (systemglobal.max_load || 150)) {
+                    console.log(`There are ${holdingFiles.length} files pending. Processing first ${(systemglobal.max_load || 150)} files.`);
+                }
 
-            const holdingFiles = fs.readdirSync(systemglobal.holding_path);
-            if (holdingFiles.length > (systemglobal.max_load || 150)) {
-                console.log(`There are ${holdingFiles.length} files pending. Processing first ${(systemglobal.max_load || 150)} files.`);
-            }
-
-            // Move up to 150 files to the deepbooru_input_path
-            const filesToMove = holdingFiles.slice(0, (systemglobal.max_load || 150));
-            for (let file of filesToMove) {
-                fs.renameSync(path.join(systemglobal.holding_path, file), path.join(systemglobal.deepbooru_input_path, file));
+                // Move up to 150 files to the deepbooru_input_path
+                const filesToMove = holdingFiles.slice(0, (systemglobal.max_load || 150));
+                for (let file of filesToMove) {
+                    fs.renameSync(path.join(systemglobal.holding_path, file), path.join(systemglobal.deepbooru_input_path, file));
+                }
             }
         }
 
