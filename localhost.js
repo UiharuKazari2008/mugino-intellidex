@@ -256,7 +256,7 @@
             if (!isBootable) {
                 Logger.printLine("ClusterIO", "System is not active master", "warn");
                 shutdownComplete = true;
-                await processGPUWorkloads();
+                await parseUntilDone(undefined, true);
                 app.get('/shutdown', async (req, res) => {
                     clearTimeout(checkinTimer);
                     checkinTimer = null;
@@ -1383,7 +1383,7 @@
         fs.writeFileSync(path.join('./', 'watchedFiles.json'), JSON.stringify({ catchList: warnedImages}))
     }
 
-    async function parseUntilDone(analyzerGroups) {
+    async function parseUntilDone(analyzerGroups, skipSearch) {
         while (true) {
             let noResults = 0;
             if (analyzerGroups) {
@@ -1414,10 +1414,14 @@
                     })
                 })
             } else {
-                const _r = await queryForTags();
-                if (_r)
-                    noResults++;
-                console.log('Search Jobs Completed!, Starting MIITS Tagger...');
+                if (!skipSearch) {
+                    const _r = await queryForTags();
+                    if (_r)
+                        noResults++;
+                    console.log('Search Jobs Completed!, Starting MIITS Tagger...');
+                } else {
+                    console.log('Starting MIITS Tagger...');
+                }
                 clearTimeout(startEvaluating);
                 startEvaluating = null;
                 startEvaluating = setTimeout(processGPUWorkloads, 3000)
