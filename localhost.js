@@ -20,6 +20,7 @@
     const crypto = require('crypto');
     const express = require('express');
     const jpeg = require('jpeg-js');
+    const os = require('os');
     const globalRunKey = crypto.randomBytes(5).toString("hex");
     let amqpConn = null;
     const Discord_CDN_Accepted_Files = ['jpg','jpeg','jfif','png','webp','gif'];
@@ -126,6 +127,24 @@
     }
     await loadDatabaseCache();
     console.log(systemglobal);
+
+    function checkMemoryUsage() {
+        const totalMemory = os.totalmem(); // Total memory in bytes
+        const freeMemory = os.freemem(); // Free memory in bytes
+        const usedMemory = totalMemory - freeMemory;
+        const usedMemoryPercentage = (usedMemory / totalMemory) * 100;
+
+        console.log(`Total Memory: ${(totalMemory / (1024 * 1024)).toFixed(2)} MB`);
+        console.log(`Used Memory: ${(usedMemory / (1024 * 1024)).toFixed(2)} MB`);
+        console.log(`Used Memory Percentage: ${usedMemoryPercentage.toFixed(2)}%`);
+
+        if (usedMemoryPercentage > 90) {
+            console.error("Memory usage over 90%. Exiting process.");
+            process.exit(1);
+        } else {
+            console.log("Memory usage is within acceptable limits.");
+        }
+    }
 
     const mqClient = require('./utils/mqAccess')(facilityName, systemglobal);
 
@@ -1455,7 +1474,10 @@
             if ((analyzerGroups && noResults === analyzerGroups.length) || (!analyzerGroups && noResults === 1))
                 break;
             console.log('More work to be done, waiting for sync...!');
-            await new Promise(done => setTimeout(() => { done(true) }, 60000))
+            await new Promise(done => setTimeout(() => {
+                checkMemoryUsage();
+                done(true);
+            }, 60000))
         }
         console.log('Waiting for next run... Zzzzz')
         runTimer = setTimeout(parseUntilDone, 300000);
