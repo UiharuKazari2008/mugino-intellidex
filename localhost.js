@@ -558,18 +558,16 @@
                     })
                 })
                 function processMsg(msg) {
-                    limiter.removeTokens(1, async function () {
-                        work(msg, 'normal', function (ok) {
-                            try {
-                                if (ok)
-                                    ch.ack(msg);
-                                else
-                                    ch.reject(msg, true);
-                            } catch (e) {
-                                closeOnErr(e);
-                            }
-                        });
-                    })
+                    work(msg, 'normal', function (ok) {
+                        try {
+                            if (ok)
+                                ch.ack(msg);
+                            else
+                                ch.reject(msg, true);
+                        } catch (e) {
+                            closeOnErr(e);
+                        }
+                    });
                 }
             });
         }
@@ -599,18 +597,16 @@
                     })
                 })
                 function processMsg(msg) {
-                    limiterlocal.removeTokens(1, async function () {
-                        work(msg, 'priority', function (ok) {
-                            try {
-                                if (ok)
-                                    ch.ack(msg);
-                                else
-                                    ch.reject(msg, true);
-                            } catch (e) {
-                                closeOnErr(e);
-                            }
-                        });
-                    })
+                    work(msg, 'priority', function (ok) {
+                        try {
+                            if (ok)
+                                ch.ack(msg);
+                            else
+                                ch.reject(msg, true);
+                        } catch (e) {
+                            closeOnErr(e);
+                        }
+                    });
                 }
             });
         }
@@ -640,17 +636,15 @@
                     })
                 })
                 function processMsg(msg) {
-                    limiterbacklog.removeTokens(1, async function () {
-                        work(msg, 'backlog', function (ok) {
-                            try {
-                                if (ok)
-                                    ch.ack(msg);
-                                else
-                                    ch.reject(msg, true);
-                            } catch (e) {
-                                closeOnErr(e);
-                            }
-                        });
+                    work(msg, 'backlog', function (ok) {
+                        try {
+                            if (ok)
+                                ch.ack(msg);
+                            else
+                                ch.reject(msg, true);
+                        } catch (e) {
+                            closeOnErr(e);
+                        }
                     });
                 }
             });
@@ -802,7 +796,7 @@
                     Logger.printLine(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info");
                     LocalQueue.setItem(fileId, { id: fileId, queue, message: msg })
                         .then(async function () {
-                            const image = sharp(new Buffer.from(msg.itemFileData, 'base64'));
+                            let image = sharp(new Buffer.from(msg.itemFileData, 'base64'));
                             const metadata = await image.metadata();
                             const rules = ruleSets.get(msg.messageChannelID);
                             const valid = (() => {
@@ -851,6 +845,7 @@
                                 Logger.printLine(`MessageProcessor`, `Image was rejected by pre-parser`, `warn`)
                                 cb(true);
                             }
+                            image = null;
                         })
                         .catch(function (err) {
                             console.log(err);
