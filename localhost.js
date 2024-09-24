@@ -769,9 +769,11 @@
                                             // Write File to Temp Filesystem
                                             stream.on('finish', async function () {
                                                 cb(true);
-                                                clearTimeout(startEvaluating);
-                                                startEvaluating = null;
-                                                startEvaluating = setTimeout(processGPUWorkloads, 60000)
+                                                if (!startEvaluating) {
+                                                    clearTimeout(startEvaluating);
+                                                    startEvaluating = null;
+                                                    startEvaluating = setTimeout(processGPUWorkloads, 60000)
+                                                }
                                             });
                                             stream.on("error", function (err) {
                                                 Logger.printLine("MPFDownload", `File failed to download! ${URLtoGet}`, "error", err)
@@ -835,9 +837,11 @@
                                                 cb(ok);
                                             });
                                         } else {
-                                            clearTimeout(startEvaluating);
-                                            startEvaluating = null;
-                                            startEvaluating = setTimeout(processGPUWorkloads, 60000);
+                                            if (!startEvaluating) {
+                                                clearTimeout(startEvaluating);
+                                                startEvaluating = null;
+                                                startEvaluating = setTimeout(processGPUWorkloads, 60000);
+                                            }
                                             cb(true);
                                         }
                                     })
