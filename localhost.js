@@ -138,11 +138,9 @@
         console.log(`Used Memory: ${(usedMemory / (1024 * 1024)).toFixed(2)} MB`);
         console.log(`Used Memory Percentage: ${usedMemoryPercentage.toFixed(2)}%`);
 
-        if (usedMemoryPercentage > 90) {
+        if (usedMemoryPercentage > 90 && systemglobal.reset_on_overload) {
             console.error("Memory usage over 90%. Exiting process.");
             process.exit(1);
-        } else {
-            console.log("Memory usage is within acceptable limits.");
         }
     }
 
