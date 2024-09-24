@@ -487,10 +487,10 @@
 
     watchResults();
     if (systemglobal.mq_mugino_in) {
-        //const RateLimiter = require('limiter').RateLimiter;
-        //const limiter = new RateLimiter(5, 5000);
-        //const limiterlocal = new RateLimiter(1, 1000);
-        //const limiterbacklog = new RateLimiter(5, 5000);
+        const RateLimiter = require('limiter').RateLimiter;
+        const limiter = new RateLimiter(5, 5000);
+        const limiterlocal = new RateLimiter(1, 1000);
+        const limiterbacklog = new RateLimiter(5, 5000);
         const amqp = require('amqplib/callback_api');
 
         app.get('/shutdown', async (req, res) => {
@@ -558,16 +558,18 @@
                     })
                 })
                 function processMsg(msg) {
-                    work(msg, 'normal', function(ok) {
-                        try {
-                            if (ok)
-                                ch.ack(msg);
-                            else
-                                ch.reject(msg, true);
-                        } catch (e) {
-                            closeOnErr(e);
-                        }
-                    });
+                    limiter.removeTokens(1, async function () {
+                        work(msg, 'normal', function (ok) {
+                            try {
+                                if (ok)
+                                    ch.ack(msg);
+                                else
+                                    ch.reject(msg, true);
+                            } catch (e) {
+                                closeOnErr(e);
+                            }
+                        });
+                    })
                 }
             });
         }
@@ -597,16 +599,18 @@
                     })
                 })
                 function processMsg(msg) {
-                    work(msg, 'priority', function(ok) {
-                        try {
-                            if (ok)
-                                ch.ack(msg);
-                            else
-                                ch.reject(msg, true);
-                        } catch (e) {
-                            closeOnErr(e);
-                        }
-                    });
+                    limiterlocal.removeTokens(1, async function () {
+                        work(msg, 'priority', function (ok) {
+                            try {
+                                if (ok)
+                                    ch.ack(msg);
+                                else
+                                    ch.reject(msg, true);
+                            } catch (e) {
+                                closeOnErr(e);
+                            }
+                        });
+                    })
                 }
             });
         }
@@ -636,15 +640,17 @@
                     })
                 })
                 function processMsg(msg) {
-                    work(msg, 'backlog', function(ok) {
-                        try {
-                            if (ok)
-                                ch.ack(msg);
-                            else
-                                ch.reject(msg, true);
-                        } catch (e) {
-                            closeOnErr(e);
-                        }
+                    limiterbacklog.removeTokens(1, async function () {
+                        work(msg, 'backlog', function (ok) {
+                            try {
+                                if (ok)
+                                    ch.ack(msg);
+                                else
+                                    ch.reject(msg, true);
+                            } catch (e) {
+                                closeOnErr(e);
+                            }
+                        });
                     });
                 }
             });
@@ -769,11 +775,9 @@
                                             // Write File to Temp Filesystem
                                             stream.on('finish', async function () {
                                                 cb(true);
-                                                if (!startEvaluating) {
-                                                    clearTimeout(startEvaluating);
-                                                    startEvaluating = null;
-                                                    startEvaluating = setTimeout(processGPUWorkloads, 60000)
-                                                }
+                                                clearTimeout(startEvaluating);
+                                                startEvaluating = null;
+                                                startEvaluating = setTimeout(processGPUWorkloads, 60000)
                                             });
                                             stream.on("error", function (err) {
                                                 Logger.printLine("MPFDownload", `File failed to download! ${URLtoGet}`, "error", err)
@@ -837,11 +841,9 @@
                                                 cb(ok);
                                             });
                                         } else {
-                                            if (!startEvaluating) {
-                                                clearTimeout(startEvaluating);
-                                                startEvaluating = null;
-                                                startEvaluating = setTimeout(processGPUWorkloads, 60000);
-                                            }
+                                            clearTimeout(startEvaluating);
+                                            startEvaluating = null;
+                                            startEvaluating = setTimeout(processGPUWorkloads, 60000);
                                             cb(true);
                                         }
                                     })
