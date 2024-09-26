@@ -104,6 +104,10 @@
             if (_mq_pdp_in.length > 0 && _mq_pdp_in[0].param_value) {
                 systemglobal.mq_mugino_in = _mq_pdp_in[0].param_value;
             }
+            const _mq_pdp_bulk = systemparams_sql.filter(e => e.param_key === 'mq.pdp.bulk');
+            if (_mq_pdp_bulk.length > 0 && _mq_pdp_bulk[0].param_value) {
+                systemglobal.mq_mugino_in_bulk = _mq_pdp_bulk[0].param_value;
+            }
             // Mugino Inbox MQ - Dynamic
             // Mugino_In = "inbox.mugino"
             // mq.pdp.out = "inbox.mugino"
@@ -374,25 +378,459 @@
             })
             if (!isBootable) {
                 Logger.printLine("ClusterIO", "System is not active master", "warn");
-                shutdownComplete = true;
-                watchResults();
-                await parseUntilDone(undefined, true);
-                app.get('/shutdown', async (req, res) => {
-                    clearTimeout(checkinTimer);
-                    checkinTimer = null;
-                    shutdownComplete = true;
-                    res.status(200).send('OK');
-                    Logger.printLine("Cluter I/O", "Node has enter manual shutdown mode, Reset to rejoin cluster", "critical")
-                })
-                startServer();
-                if (systemglobal.fan_reset_url) {
-                    setInterval(() => {
-                        request.get(`http://${systemglobal.fan_reset_url}`, async (err, res, body) => {
+                if (systemglobal.mq_mugino_in_bulk) {
+                    Logger.printLine("KanmiMQ", "Node is processing in bulk mode", "warning");
+                    const RateLimiter = require('limiter').RateLimiter;
+                    const limiter = new RateLimiter(5, 5000);
+                    const limiterlocal = new RateLimiter(1, 1000);
+                    const limiterbacklog = new RateLimiter(5, 5000);
+                    const amqp = require('amqplib/callback_api');
+
+                    app.get('/shutdown', async (req, res) => {
+                        shutdownRequested = true;
+                        if (amqpConn)
+                            amqpConn.close();
+                        clearTimeout(startEvaluating);
+                        startEvaluating = null;
+                        clearTimeout(checkinTimer);
+                        checkinTimer = null;
+                        if (activeNode) {
+                            request.get(`http://${systemglobal.Watchdog_Host}/cluster/force/search?id=${systemglobal.Cluster_ID}`, async (err, res) => {
+                                if (!err && res && res.statusCode && res.statusCode < 400) {
+                                    console.log("Entering Search Mode...")
+                                }
+                            })
+                        }
+                        if (!gpuLocked)
+                            await processGPUWorkloads();
+                        await waitForGPUUnlock();
+                        shutdownComplete = true;
+                        Logger.printLine("Cluter I/O", "Node has enter manual shutdown mode, Reset to rejoin cluster", "critical")
+                        res.status(200).send('OK');
+                    })
+
+                    if (process.env.MQ_HOST && process.env.MQ_HOST.trim().length > 0)
+                        systemglobal.mq_host = process.env.MQ_HOST.trim()
+                    if (process.env.RABBITMQ_DEFAULT_USER && process.env.RABBITMQ_DEFAULT_USER.trim().length > 0)
+                        systemglobal.mq_user = process.env.RABBITMQ_DEFAULT_USER.trim()
+                    if (process.env.RABBITMQ_DEFAULT_PASS && process.env.RABBITMQ_DEFAULT_PASS.trim().length > 0)
+                        systemglobal.mq_pass = process.env.RABBITMQ_DEFAULT_PASS.trim()
+
+                    const mq_host = `amqp://${systemglobal.mq_user}:${systemglobal.mq_pass}@${systemglobal.mq_host}/?heartbeat=60`
+                    const MQWorker1 = `${systemglobal.mq_mugino_in_bulk}`
+                    const MQWorker2 = `${MQWorker1}.priority`
+                    const MQWorker3 = `${MQWorker1}.backlog`
+
+                    if (systemglobal.rules)
+                        systemglobal.rules.map(async rule => { rule.channels.map(ch => { ruleSets.set(ch, rule) }) })
+
+                    console.log(ruleSets.size + ' configured rules')
+
+                    function startWorker() {
+                        amqpConn.createChannel(function(err, ch) {
+                            if (closeOnErr(err)) return;
+                            ch.on("error", function(err) {
+                                Logger.printLine("KanmiMQ", "Channel 1 Error (Remote)", "error", err)
+                            });
+                            ch.on("close", function() {
+                                Logger.printLine("KanmiMQ", "Channel 1 Closed (Remote)", "critical")
+                                if (!shutdownRequested)
+                                    amqpConn.close();
+                            });
+                            ch.prefetch(10);
+                            ch.assertQueue(MQWorker1, { durable: true }, function(err, _ok) {
+                                if (closeOnErr(err)) return;
+                                ch.consume(MQWorker1, processMsg, { noAck: false });
+                                Logger.printLine("KanmiMQ", "Channel 1 Worker Ready (Remote)", "debug")
+                            });
+                            ch.assertExchange("kanmi.exchange", "direct", {}, function(err, _ok) {
+                                if (closeOnErr(err)) return;
+                                ch.bindQueue(MQWorker1, "kanmi.exchange", MQWorker1, [], function(err, _ok) {
+                                    if (closeOnErr(err)) return;
+                                    Logger.printLine("KanmiMQ", "Channel 1 Worker Bound to Exchange (Remote)", "debug")
+                                })
+                            })
+                            function processMsg(msg) {
+                                work(msg, 'normal', function (ok) {
+                                    try {
+                                        if (ok)
+                                            ch.ack(msg);
+                                        else
+                                            ch.reject(msg, true);
+                                    } catch (e) {
+                                        closeOnErr(e);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    // Priority Requests
+                    function startWorker2() {
+                        amqpConn.createChannel(function(err, ch) {
+                            if (closeOnErr(err)) return;
+                            ch.on("error", function(err) {
+                                Logger.printLine("KanmiMQ", "Channel 2 Error (Local)", "error", err)
+                            });
+                            ch.on("close", function() {
+                                Logger.printLine("KanmiMQ", "Channel 2 Closed (Local)", "critical")
+                                if (!shutdownRequested)
+                                    amqpConn.close();
+                            });
+                            ch.prefetch(1);
+                            ch.assertQueue(MQWorker2, { durable: true }, function(err, _ok) {
+                                if (closeOnErr(err)) return;
+                                ch.consume(MQWorker2, processMsg, { noAck: false });
+                                Logger.printLine("KanmiMQ", "Channel 2 Worker Ready (Local)", "debug")
+                            });
+                            ch.assertExchange("kanmi.exchange", "direct", {}, function(err, _ok) {
+                                if (closeOnErr(err)) return;
+                                ch.bindQueue(MQWorker2, "kanmi.exchange", MQWorker2, [], function(err, _ok) {
+                                    if (closeOnErr(err)) return;
+                                    Logger.printLine("KanmiMQ", "Channel 2 Worker Bound to Exchange (Local)", "debug")
+                                })
+                            })
+                            function processMsg(msg) {
+                                work(msg, 'priority', function (ok) {
+                                    try {
+                                        if (ok)
+                                            ch.ack(msg);
+                                        else
+                                            ch.reject(msg, true);
+                                    } catch (e) {
+                                        closeOnErr(e);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    // Backlog Requests
+                    function startWorker3() {
+                        amqpConn.createChannel(function(err, ch) {
+                            if (closeOnErr(err)) return;
+                            ch.on("error", function(err) {
+                                Logger.printLine("KanmiMQ", "Channel 3 Error (Backlog)", "error", err)
+                            });
+                            ch.on("close", function() {
+                                Logger.printLine("KanmiMQ", "Channel 3 Closed (Backlog)", "critical")
+                                if (!shutdownRequested)
+                                    amqpConn.close();
+                            });
+                            ch.prefetch(5);
+                            ch.assertQueue(MQWorker3, { durable: true, queueMode: 'lazy'  }, function(err, _ok) {
+                                if (closeOnErr(err)) return;
+                                ch.consume(MQWorker3, processMsg, { noAck: false });
+                                Logger.printLine("KanmiMQ", "Channel 3 Worker Ready (Backlog)", "debug")
+                            });
+                            ch.assertExchange("kanmi.exchange", "direct", {}, function(err, _ok) {
+                                if (closeOnErr(err)) return;
+                                ch.bindQueue(MQWorker3, "kanmi.exchange", MQWorker3, [], function(err, _ok) {
+                                    if (closeOnErr(err)) return;
+                                    Logger.printLine("KanmiMQ", "Channel 3 Worker Bound to Exchange (Backlog)", "debug")
+                                })
+                            })
+                            function processMsg(msg) {
+                                work(msg, 'backlog', function (ok) {
+                                    try {
+                                        if (ok)
+                                            ch.ack(msg);
+                                        else
+                                            ch.reject(msg, true);
+                                    } catch (e) {
+                                        closeOnErr(e);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    async function work(raw, queue, cb) {
+                        try {
+                            const msg = JSON.parse(Buffer.from(raw.content).toString('utf-8'));
+                            const fileId = globalRunKey + '-' + DiscordSnowflake.generate();
+                            /*console.log({
+                                ...msg,
+                                itemFileData: (msg.itemFileData) ? 'true' : 'false'
+                            })*/
+
+                            if (msg.messageType === 'command' && msg.messageEID) {
+                                Logger.printLine(`MessageProcessor`, `Command Message: (${queue}) Action: ${msg.messageAction}, From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info");
+                                switch (msg.messageAction) {
+                                    case 'Upscale':
+                                        db.safe(`SELECT x.*, y.data FROM (SELECT r.*, m.url, m.valid FROM (SELECT kanmi_records.* FROM kanmi_records WHERE kanmi_records.eid = ? AND kanmi_records.source = 0) r LEFT JOIN (SELECT url, valid, fileid FROM discord_multipart_files) m ON r.fileid = m.fileid) x LEFT OUTER JOIN (SELECT * FROM kanmi_records_extended) y ON (x.eid = y.eid)`, [MessageContents.messageEID], function (err, cacheresponse) {
+                                            if (err || cacheresponse.length === 0) {
+                                                Logger.printLine("MPFDownload", `File not found!`, "error")
+                                                cb(true)
+                                            } else if (cacheresponse[0].fileid && cacheresponse.filter(e => e.valid === 0 && !(!e.url)).length !== 0) {
+                                                Logger.printLine("MPFDownload", `Failed to proccess the MultiPart File ${cacheresponse.real_filename} (${MessageContents.fileUUID})\nSome files are not valid and will need to be revalidated or repaired!`, "error")
+                                                cb(true)
+                                            } else if (cacheresponse[0].fileid && cacheresponse.filter(e => e.valid === 1 && !(!e.url)).length !== cacheresponse[0].paritycount) {
+                                                Logger.printLine("MPFDownload", `Failed to proccess the MultiPart File ${cacheresponse.real_filename} (${MessageContents.fileUUID})\nThe expected number of parity files were not available. \nTry to repair the parity cache \`juzo jfs repair parts\``, "error")
+                                                cb(true)
+                                            } else if (cacheresponse[0].fileid && ['jpg', 'jpeg', 'jfif', 'png'].indexOf(cacheresponse[0].real_filename.split('.').pop().toLowerCase()) !== -1) {
+                                                let itemsCompleted = [];
+                                                const fileName = `upscale-${fileId}.${cacheresponse[0].real_filename.split('.').pop().toLowerCase()}`
+                                                const CompleteFilename = path.join(systemglobal.waifu2x_input_path, fileName);
+                                                const PartsFilePath = path.join(systemglobal.mpf_temp, `PARITY-${cacheresponse[0].fileid}`);
+                                                fs.mkdirSync(PartsFilePath, {recursive: true})
+                                                let requests = cacheresponse.filter(e => e.valid === 1 && !(!e.url)).map(e => e.url).sort((x, y) => (x.split('.').pop() < y.split('.').pop()) ? -1 : (y.split('.').pop() > x.split('.').pop()) ? 1 : 0).reduce((promiseChain, URLtoGet, URLIndex) => {
+                                                    return promiseChain.then(() => new Promise((resolve) => {
+                                                        const DestFilename = path.join(PartsFilePath, `${URLIndex}.par`)
+                                                        const stream = request.get({
+                                                            url: URLtoGet,
+                                                            headers: {
+                                                                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+                                                                'accept-language': 'en-US,en;q=0.9',
+                                                                'cache-control': 'max-age=0',
+                                                                'sec-ch-ua': '"Chromium";v="92", " Not A;Brand";v="99", "Microsoft Edge";v="92"',
+                                                                'sec-ch-ua-mobile': '?0',
+                                                                'sec-fetch-dest': 'document',
+                                                                'sec-fetch-mode': 'navigate',
+                                                                'sec-fetch-site': 'none',
+                                                                'sec-fetch-user': '?1',
+                                                                'upgrade-insecure-requests': '1',
+                                                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36 Edg/92.0.902.73'
+                                                            },
+                                                        }).pipe(fs.createWriteStream(DestFilename))
+                                                        // Write File to Temp Filesystem
+                                                        stream.on('finish', function () {
+                                                            Logger.printLine("MPFDownload", `Downloaded Part #${URLIndex} : ${DestFilename}`, "debug", {
+                                                                URL: URLtoGet,
+                                                                DestFilename: DestFilename,
+                                                                CompleteFilename: fileName
+                                                            })
+                                                            itemsCompleted.push(DestFilename);
+                                                            resolve()
+                                                        });
+                                                        stream.on("error", function (err) {
+                                                            Logger.printLine("MPFDownload", `Part of the multipart file failed to download! ${URLtoGet}`, "err", "MPFDownload", "error", err)
+                                                            resolve()
+                                                        })
+                                                    }))
+                                                }, Promise.resolve());
+                                                requests.then(async () => {
+                                                    if (itemsCompleted.length === cacheresponse[0].paritycount) {
+                                                        await new Promise((deleted) => {
+                                                            rimraf(CompleteFilename, function (err) { deleted(!err) });
+                                                        })
+                                                        try {
+                                                            await splitFile.mergeFiles(itemsCompleted.sort(function (a, b) {
+                                                                return a - b
+                                                            }), CompleteFilename)
+                                                            Logger.printLine("MPFDownload", `File "${fileName.replace(/[/\\?%*:|"<> ]/g, '_')}" was build successfully!`, "info")
+                                                            await new Promise((deleted) => {
+                                                                rimraf(PartsFilePath, function (err) { deleted(!err) });
+                                                            })
+
+                                                            cb(true)
+                                                        } catch (err) {
+                                                            Logger.printLine("MPFDownload", `File ${cacheresponse[0].real_filename} failed to rebuild!`, "err", err)
+                                                            console.error(err)
+                                                            for (let part of itemsCompleted) {
+                                                                fs.unlink(part, function (err) {
+                                                                    if (err && (err.code === 'EBUSY' || err.code === 'ENOENT')) {
+                                                                        //mqClient.sendMessage(`Error removing file part from temporary folder! - ${err.message}`, "err", "MPFDownload", err)
+                                                                    }
+                                                                })
+                                                            }
+                                                            cb(true)
+                                                        }
+                                                    } else {
+                                                        Logger.printLine("MPFDownload", `Failed to proccess the MultiPart File ${fileId} (${MessageContents.fileUUID})\nThe expected number of parity files did not all download or save.`, "error")
+                                                        cb(true)
+                                                    }
+                                                })
+                                            } else if (!cacheresponse[0].fileid && ['jpg', 'jpeg', 'jfif', 'png'].indexOf(cacheresponse[0].real_filename.split('.').pop().toLowerCase()) !== -1) {
+                                                UpscaleQueue.setItem(fileId, { id: fileId, queue, message: msg })
+                                                    .then(async function () {
+                                                        const URLtoGet = (( cacheresponse[0].cache_proxy) ? cacheresponse[0].cache_proxy.startsWith('http') ? cacheresponse[0].cache_proxy : `https://cdn.discordapp.com/attachments${cacheresponse[0].cache_proxy}` : (cacheresponse[0].attachment_hash && cacheresponse[0].attachment_name) ? `https://cdn.discordapp.com/attachments/` + ((cacheresponse[0].attachment_hash.includes('/')) ? cacheresponse[0].attachment_hash : `${cacheresponse[0].channel}/${cacheresponse[0].attachment_hash}/${cacheresponse[0].attachment_name}`) : undefined) + ''
+                                                        const filePath = path.join(systemglobal.waifu2x_input_path, `upscale-${fileId}.${cacheresponse[0].real_filename.split('.').pop().toLowerCase()}`)
+                                                        const stream = request.get({
+                                                            url: URLtoGet,
+                                                            headers: {
+                                                                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+                                                                'accept-language': 'en-US,en;q=0.9',
+                                                                'cache-control': 'max-age=0',
+                                                                'sec-ch-ua': '"Chromium";v="92", " Not A;Brand";v="99", "Microsoft Edge";v="92"',
+                                                                'sec-ch-ua-mobile': '?0',
+                                                                'sec-fetch-dest': 'document',
+                                                                'sec-fetch-mode': 'navigate',
+                                                                'sec-fetch-site': 'none',
+                                                                'sec-fetch-user': '?1',
+                                                                'upgrade-insecure-requests': '1',
+                                                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36 Edg/92.0.902.73'
+                                                            },
+                                                        }).pipe(fs.createWriteStream(filePath))
+                                                        // Write File to Temp Filesystem
+                                                        stream.on('finish', async function () {
+                                                            cb(true);
+                                                            clearTimeout(startEvaluating);
+                                                            startEvaluating = null;
+                                                            startEvaluating = setTimeout(processGPUWorkloads, 60000)
+                                                        });
+                                                        stream.on("error", function (err) {
+                                                            Logger.printLine("MPFDownload", `File failed to download! ${URLtoGet}`, "error", err)
+                                                            cb(true)
+                                                        })
+                                                    })
+                                                    .catch(function (err) {
+                                                        Logger.printLine(`MessageProcessor`, `Failed to set save message`, `error`, err)
+                                                        cb(false);
+                                                    })
+                                            } else {
+                                                Logger.printLine("MPFDownload", `File format is not supported!`, "error")
+                                                cb(true)
+                                            }
+                                        })
+                                        break;
+                                    default:
+                                        cb(true);
+                                        break;
+                                }
+                            } else if (msg.messageType === 'sfile' && msg.itemFileData && msg.itemFileName && ['jpg', 'jpeg', 'jfif', 'png'].indexOf(msg.itemFileName.split('.').pop().toLowerCase()) !== -1) {
+                                Logger.printLine(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info");
+                                LocalQueue.setItem(fileId, { id: fileId, queue, message: msg })
+                                    .then(async function () {
+                                        let image = sharp(new Buffer.from(msg.itemFileData, 'base64'));
+                                        const metadata = await image.metadata();
+                                        const rules = ruleSets.get(msg.messageChannelID);
+                                        const valid = (() => {
+                                            let smallest = null;
+                                            let largest = null;
+                                            if (metadata.width > metadata.height) { // Landscape Resize
+                                                largest = metadata.width;
+                                                smallest = metadata.height;
+                                            } else { // Portrait or Square Image
+                                                largest = metadata.height;
+                                                smallest = metadata.width;
+                                            }
+                                            if (rules && metadata && rules.require && rules.require.max_res && rules.require.max_res <= largest) {
+                                                console.error(`Blocked because image to large: ${largest} > ${rules.require.max_res} `);
+                                                return false;
+                                            }
+                                            if (rules && metadata && rules.require && rules.require.min_res && rules.require.min_res > smallest) {
+                                                console.error(`Blocked because image to small: ${smallest} < ${rules.require.min_res}"`);
+                                                return false;
+                                            }
+                                            if (rules && metadata && rules.require && rules.require.not_aspect_ratio && rules.require.not_aspect_ratio.indexOf(toFixed((metadata.height / metadata.width), 5).toString()) !== -1) {
+                                                console.error(`Blocked because aspect ratio: ${toFixed((metadata.height / metadata.width), 5).toString()}R"`);
+                                                return false;
+                                            }
+                                            return true;
+                                        })()
+                                        if (valid) {
+                                            await image
+                                                .toFormat('png')
+                                                .withMetadata()
+                                                .toFile(path.join(systemglobal.holding_path || systemglobal.deepbooru_input_path, `message-${fileId}.png`), (err, info) => {
+                                                    if (err) {
+                                                        Logger.printLine("SaveFile", `Error when saving the file ${fileId}`, "error")
+                                                        console.error(err);
+                                                        mqClient.sendData(`${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
+                                                            cb(ok);
+                                                        });
+                                                    } else {
+                                                        clearTimeout(startEvaluating);
+                                                        startEvaluating = null;
+                                                        startEvaluating = setTimeout(processGPUWorkloads, 60000);
+                                                        cb(true);
+                                                    }
+                                                })
+                                        } else {
+                                            Logger.printLine(`MessageProcessor`, `Image was rejected by pre-parser`, `warn`)
+                                            cb(true);
+                                        }
+                                        image = null;
+                                    })
+                                    .catch(function (err) {
+                                        console.log(err);
+                                        Logger.printLine(`MessageProcessor`, `Failed to save message`, `error`, err)
+                                        mqClient.sendData( `${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
+                                            cb(ok);
+                                        });
+                                    })
+                            } else {
+                                Logger.printLine(`MessageProcessor`, `Bypass Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "debug");
+                                mqClient.sendData( `${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
+                                    cb(ok);
+                                });
+                            }
+                        } catch (err) {
+                            Logger.printLine("JobParser", "Error Parsing Job - " + err.message, "critical")
+                            cb(false);
+                        }
+                    }
+                    function start() {
+                        amqp.connect(mq_host, function(err, conn) {
+                            if (err) {
+                                Logger.printLine("KanmiMQ", "Initialization Error", "critical", err)
+                                return setTimeout(start, 1000);
+                            }
+                            conn.on("error", function(err) {
+                                if (err.message !== "Connection closing") {
+                                    Logger.printLine("KanmiMQ", "Initialization Connection Error", "emergency", err)
+                                }
+                            });
+                            conn.on("close", function() {
+                                if ((active || systemglobal.mq_mugino_in_bulk) && !shutdownRequested) {
+                                    Logger.printLine("KanmiMQ", "Attempting to Reconnect...", "debug")
+                                    return setTimeout(start, 1000);
+                                }
+                            });
+                            Logger.printLine("KanmiMQ", `Connected to Kanmi Exchange as ${systemglobal.system_name}!`, "info")
+                            amqpConn = conn;
+                            whenConnected();
+                        });
+                    }
+                    function closeOnErr(err) {
+                        if (!err) return false;
+                        console.error(err)
+                        Logger.printLine("KanmiMQ", "Connection Closed due to error", "error", err)
+                        amqpConn.close();
+                        return true;
+                    }
+                    async function whenConnected() {
+                        startWorker();
+                        startWorker2();
+                        startWorker3();
+                        if (process.send && typeof process.send === 'function')
+                            process.send('ready');
+                        init = true
+                    }
+
+                    watchResults();
+                    startServer();
+                    if (systemglobal.fan_up_url) {
+                        request.get(`http://${systemglobal.fan_up_url}`, async (err, res, body) => {
                             if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
                                 console.error(err || res.body);
                             }
                         })
-                    }, 60000)
+                    }
+                    await processGPUWorkloads();
+                    start();
+                    if (systemglobal.search)
+                        await parseUntilDone(systemglobal.search);
+                    console.log("First pass completed!")
+                } else {
+                    shutdownComplete = true;
+                    watchResults();
+                    await parseUntilDone(undefined, true);
+                    app.get('/shutdown', async (req, res) => {
+                        clearTimeout(checkinTimer);
+                        checkinTimer = null;
+                        shutdownComplete = true;
+                        res.status(200).send('OK');
+                        Logger.printLine("Cluter I/O", "Node has enter manual shutdown mode, Reset to rejoin cluster", "critical")
+                    })
+                    startServer();
+                    if (systemglobal.fan_reset_url) {
+                        setInterval(() => {
+                            request.get(`http://${systemglobal.fan_reset_url}`, async (err, res, body) => {
+                                if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
+                                    console.error(err || res.body);
+                                }
+                            })
+                        }, 60000)
+                    }
                 }
             } else {
                 Logger.printLine("ClusterIO", "System active master", "info");
@@ -408,7 +846,7 @@
             }
             checkinTimer = setInterval(async () => {
                 if (((new Date().getTime() - lastClusterCheckin) / 60000).toFixed(2) >= (systemglobal.Cluster_Comm_Loss_Time || 4.5)) {
-                    if (active) {
+                    if (active || systemglobal.mq_mugino_in_bulk) {
                         Logger.printLine("ClusterIO", "Cluster Manager Communication was lost, No longer listening!", "critical");
                         shutdownRequested = true;
                         if (amqpConn)
