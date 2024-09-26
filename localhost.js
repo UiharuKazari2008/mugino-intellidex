@@ -800,13 +800,6 @@
 
                     watchResults();
                     startServer();
-                    if (systemglobal.fan_up_url) {
-                        request.get(`http://${systemglobal.fan_up_url}`, async (err, res, body) => {
-                            if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
-                                console.error(err || res.body);
-                            }
-                        })
-                    }
                     await processGPUWorkloads();
                     start();
                     if (systemglobal.search)
@@ -837,13 +830,6 @@
             } else {
                 Logger.printLine("ClusterIO", "System active master", "info");
                 activeNode = true;
-                if (systemglobal.fan_up_url) {
-                    request.get(`http://${systemglobal.fan_up_url}`, async (err, res, body) => {
-                        if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
-                            console.error(err || res.body);
-                        }
-                    })
-                }
                 cont(true)
             }
             checkinTimer = setInterval(async () => {
@@ -1512,6 +1498,13 @@
                     })
                 const items = (fs.readdirSync(systemglobal.deepbooru_input_path)).length;
                 if (items > 0) {
+                    if (systemglobal.fan_up_url) {
+                        request.get(`http://${systemglobal.fan_up_url}`, async (err, res, body) => {
+                            if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
+                                console.error(err || res.body);
+                            }
+                        })
+                    }
                     let ddOptions = ['evaluate', systemglobal.deepbooru_input_path, '--project-path', systemglobal.deepbooru_model_path, '--allow-folder', '--save-json', '--save-path', systemglobal.deepbooru_output_path, '--no-tag-output']
                     if (systemglobal.deepbooru_gpu)
                         ddOptions.push('--allow-gpu')
@@ -1534,6 +1527,15 @@
                             console.log(`Tagging Completed in ${((Date.now() - startTime) / 1000).toFixed(0)} sec!`);
                             mittsIsActive = false;
                             resolve(true)
+                        }
+                        if (systemglobal.fan_reset_url) {
+                            setInterval(() => {
+                                request.get(`http://${systemglobal.fan_reset_url}`, async (err, res, body) => {
+                                    if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
+                                        console.error(err || res.body);
+                                    }
+                                })
+                            }, 60000)
                         }
                     })
                 } else {
