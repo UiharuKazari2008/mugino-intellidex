@@ -710,9 +710,11 @@
                                                         // Write File to Temp Filesystem
                                                         stream.on('finish', async function () {
                                                             cb(true);
-                                                            clearTimeout(startEvaluating);
-                                                            startEvaluating = null;
-                                                            startEvaluating = setTimeout(processGPUWorkloads, 60000)
+                                                            if (!gpuLocked && startEvaluating === null) {
+                                                                clearTimeout(startEvaluating);
+                                                                startEvaluating = null;
+                                                                startEvaluating = setTimeout(processGPUWorkloads, 60000)
+                                                            }
                                                         });
                                                         stream.on("error", function (err) {
                                                             Logger.printLine("MPFDownload", `File failed to download! ${URLtoGet}`, "error", err)
@@ -1280,9 +1282,11 @@
                                                 cb(ok);
                                             });
                                         } else {
-                                            clearTimeout(startEvaluating);
-                                            startEvaluating = null;
-                                            startEvaluating = setTimeout(processGPUWorkloads, 60000);
+                                            if (!gpuLocked && startEvaluating === null) {
+                                                clearTimeout(startEvaluating);
+                                                startEvaluating = null;
+                                                startEvaluating = setTimeout(processGPUWorkloads, 60000)
+                                            }
                                             cb(true);
                                         }
                                     })
@@ -1870,9 +1874,11 @@
                     requests.then(async () => {
                         if (noResults !== analyzerGroups.length) {
                             console.log('Search Jobs Completed!, Starting MIITS Tagger...');
-                            clearTimeout(startEvaluating);
-                            startEvaluating = null;
-                            startEvaluating = setTimeout(processGPUWorkloads, 3000)
+                            if (!gpuLocked && startEvaluating === null) {
+                                clearTimeout(startEvaluating);
+                                startEvaluating = null;
+                                startEvaluating = setTimeout(processGPUWorkloads, 3000)
+                            }
                             await sleep(5000);
                             while (mittsIsActive) {
                                 await sleep(5000);
