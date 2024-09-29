@@ -1390,10 +1390,8 @@
         ])
     }
     async function processGPUWorkloads() {
-        if (startEvaluating) {
-            clearTimeout(startEvaluating);
-            startEvaluating = null;
-        }
+        clearTimeout(startEvaluating);
+        startEvaluating = null;
         if (!gpuLocked) {
             await validateImageInputs();
             if (systemglobal.deepbooru_exec)
