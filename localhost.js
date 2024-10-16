@@ -1623,6 +1623,8 @@
                 url = `${systemglobal.cdn_access_url}master/${e.path_hint}/${e.mfull_hint}`;
             } else if (e.attachment_auth && e.attachment_auth_valid === 1) {
                 url = `https://cdn.discordapp.com/attachments/` + ((e.attachment_hash.includes('/')) ? e.attachment_hash : `${e.channel}/${e.attachment_hash}/${e.attachment_name.split('?')[0]}`) + `?${e.attachment_auth}`;
+            } else {
+                console.log('Did not get any valid data to make a URL', e)
             }
             return { url, ...e };
         })
