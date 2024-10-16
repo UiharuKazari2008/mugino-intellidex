@@ -1560,6 +1560,10 @@
             'kanmi_records.id',
             'kanmi_records.eid',
             'kanmi_records.channel',
+            'kanmi_records.attachment_name',
+            'kanmi_records.attachment_hash',
+            'kanmi_records.attachment_auth',
+            'IF(kanmi_records.attachment_auth_ex > NOW() + INTERVAL 1 HOUR, 1, 0) AS attachment_auth_valid'
         ]
         const sqlTables = [
             'kanmi_records',
@@ -1617,6 +1621,8 @@
                 url = `${systemglobal.cdn_access_url}full/${e.path_hint}/${e.full_hint}`;
             } else if (e.mfull_hint) {
                 url = `${systemglobal.cdn_access_url}master/${e.path_hint}/${e.mfull_hint}`;
+            } else if (e.attachment_auth && e.attachment_auth_valid === 1) {
+                url = `https://cdn.discordapp.com/attachments/` + ((e.attachment_hash.includes('/')) ? e.attachment_hash : `${e.channel}/${e.attachment_hash}/${e.attachment_name.split('?')[0]}`) + `?${e.attachment_auth}`;
             }
             return { url, ...e };
         })
@@ -1734,7 +1740,7 @@
         }
         return false;
     }
-    async function parseResultsForMessage(key, results) {
+    async function parseResultsForMessage(key, results, bypass) {
         if (key) {
             return await new Promise(ok => {
                 LocalQueue.getItem(key)
@@ -1768,7 +1774,7 @@
                                             messageTags: tagString
                                         }
                                     });
-                                } else {
+                                } else if (bypass) {
                                     console.error(`Bypassing, Unable to parse tags for ${key}`);
                                     ok({
                                         destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
@@ -1777,8 +1783,10 @@
                                             ...data.message
                                         }
                                     });
+                                } else {
+                                    ok(false)
                                 }
-                            } else {
+                            } else if (bypass) {
                                 console.error(`Bypassing ${key}, No tags provided`);
                                 ok({
                                     destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
@@ -1787,6 +1795,8 @@
                                         ...data.message
                                     }
                                 });
+                            } else {
+                                ok(false)
                             }
 
                         } else {
@@ -1842,7 +1852,7 @@
                     try {
                         if (e.includes('message-')) {
                             const key = e.split('message-').pop().split('.')[0];
-                            const a = await parseResultsForMessage(key);
+                            const a = await parseResultsForMessage(key, undefined, true);
                             mqClient.sendData( `${a.destination}`, a.message, function (ok) { });
                         }
                         fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, e));
