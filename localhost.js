@@ -1750,12 +1750,46 @@
                                 const tags = Object.keys(results);
                                 const rules = ruleSets.get(data.message.messageChannelID);
                                 const result = (() => {
-                                    if (rules && rules.accept && tags.filter(t => (rules.accept.indexOf(t) !== -1)).length === 0) {
-                                        console.error(`Did not find a approved tags "${tags.filter(t => rules.block.indexOf(t) !== -1).join(' ')}"`)
+                                    if (rules && rules.accept && tags.filter(t => {
+                                        return rules.accept.some(rule => {
+                                            if (rule.startsWith('s:')) {
+                                                // Check if the tag starts with the specified string after 's:'
+                                                return t.startsWith(rule.slice(2));
+                                            } else if (rule.startsWith('e:')) {
+                                                // Check if the tag ends with the specified string after 'e:'
+                                                return t.endsWith(rule.slice(2));
+                                            } else {
+                                                // Regular match (exact match)
+                                                return rule === t;
+                                            }
+                                        });
+                                    }).length === 0) {
+                                        console.error(`Did not find approved tags "${tags}"`);
                                         return false;
                                     }
-                                    if (rules && rules.block && tags.filter(t => (rules.block.indexOf(t) !== -1)).length > 0) {
-                                        console.error(`Found a blocked tags "${tags.filter(t => rules.block.indexOf(t) !== -1).join(' ')}"`)
+                                    if (rules && rules.block && tags.some(t => {
+                                        return rules.block.some(rule => {
+                                            if (rule.startsWith('s:')) {
+                                                // Block if the tag starts with the specified string after 's:'
+                                                return t.startsWith(rule.slice(2));
+                                            } else if (rule.startsWith('e:')) {
+                                                // Block if the tag ends with the specified string after 'e:'
+                                                return t.endsWith(rule.slice(2));
+                                            } else {
+                                                // Regular match (exact match)
+                                                return rule === t;
+                                            }
+                                        });
+                                    })) {
+                                        console.error(`Found blocked tags "${tags.filter(t => rules.block.some(rule => {
+                                            if (rule.startsWith('s:')) {
+                                                return t.startsWith(rule.slice(2));
+                                            } else if (rule.startsWith('e:')) {
+                                                return t.endsWith(rule.slice(2));
+                                            } else {
+                                                return rule === t;
+                                            }
+                                        })).join(' ')}"`);
                                         return false;
                                     }
                                     if (rules && rules.block_pairs && rules.block_pairs.map(ph => ph.map(p => tags.filter(t => (p.indexOf(t) !== -1)).length).filter(g => !g).length).filter(h => h === 0).length > 0) {
