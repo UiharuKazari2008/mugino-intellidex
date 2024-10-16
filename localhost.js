@@ -1796,6 +1796,14 @@
                                         console.error(`Found a blocked pair of tags "${rules.block_pairs.join(' + ')}"`)
                                         return false;
                                     }
+                                    if (rules && rules.min_count && tags.length < rules.min_count) {
+                                        console.error(`Did not find enough tags (${tags.length})`)
+                                        return false;
+                                    }
+                                    if (rules && rules.max_count && tags.length >= rules.max_count) {
+                                        console.error(`Returned to many tags (${tags.length}): Possible tag flood`)
+                                        return false;
+                                    }
                                     return true;
                                 })()
                                 let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
