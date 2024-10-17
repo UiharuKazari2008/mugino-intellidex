@@ -1752,6 +1752,15 @@
                             if (results) {
                                 const tags = Object.keys(results);
                                 const rules = ruleSets.get(data.message.messageChannelID);
+                                const tagMatchesRule = (t, rule) => {
+                                    if (rule.startsWith('s:')) {
+                                        return t.startsWith(rule.slice(2));
+                                    } else if (rule.startsWith('e:')) {
+                                        return t.endsWith(rule.slice(2));
+                                    } else {
+                                        return rule === t;
+                                    }
+                                };
                                 const result = (() => {
                                     if (rules && rules.accept && tags.filter(t => {
                                         return rules.accept.some(rule => {
@@ -1809,6 +1818,35 @@
                                     }
                                     return true;
                                 })()
+                                const folderMatch = (() => {
+                                    if (rules && rules.folder_match && rules.folder_match.destination) {
+                                        // Check min and max count
+                                        if (rules.folder_match.min_count && tags.length < rules.folder_match.min_count) {
+                                            return undefined;
+                                        }
+                                        if (rules.folder_match.max_count && tags.length >= rules.folder_match.max_count) {
+                                            return undefined;
+                                        }
+
+                                        // Check for matching accepted tags
+                                        if (rules.folder_match.accept && !tags.some(t => {
+                                            return rules.folder_match.accept.some(rule => tagMatchesRule(t, rule));
+                                        })) {
+                                            console.error(`Found tag match for folder!`);
+                                            return rules.folder_match.destination;
+                                        }
+
+                                        // Check for matching accepted tag pairs
+                                        if (rules.folder_match.accept_pairs && rules.folder_match.accept_pairs.some(pair => {
+                                            return pair.every(p => tags.some(t => tagMatchesRule(t, p)));
+                                        })) {
+                                            console.error(`Found tag pair match for folder!`);
+                                            return rules.folder_match.destination;
+                                        }
+                                    }
+                                    return undefined;
+                                })();
+
                                 let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
                                 if (result) {
                                     ok({
@@ -1816,7 +1854,8 @@
                                         message: {
                                             fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
                                             ...data.message,
-                                            messageTags: tagString
+                                            messageTags: tagString,
+                                            messageChannelFolder: folderMatch
                                         }
                                     });
                                 } else if (bypass) {
