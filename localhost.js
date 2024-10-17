@@ -1849,7 +1849,8 @@
 
                                     return undefined; // No matches found, return false
                                 })();
-
+                                if (folderMatch)
+                                    console.log('Adding to folder: ' + folderMatch);
 
                                 let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
                                 if (result) {
