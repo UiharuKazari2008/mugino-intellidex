@@ -1819,33 +1819,37 @@
                                     return true;
                                 })()
                                 const folderMatch = (() => {
-                                    if (rules && rules.folder_match && rules.folder_match.destination) {
-                                        // Check min and max count
-                                        if (rules.folder_match.min_count && tags.length < rules.folder_match.min_count) {
-                                            return undefined;
-                                        }
-                                        if (rules.folder_match.max_count && tags.length >= rules.folder_match.max_count) {
-                                            return undefined;
-                                        }
+                                    if (rules && Array.isArray(rules.folder_match)) {
+                                        for (let folderRule of rules.folder_match) {
+                                            // Check min and max count
+                                            if (folderRule.min_count && tags.length < folderRule.min_count) {
+                                                continue; // Skip to the next folderRule if it doesn't meet the min_count
+                                            }
+                                            if (folderRule.max_count && tags.length >= folderRule.max_count) {
+                                                continue; // Skip to the next folderRule if it exceeds the max_count
+                                            }
 
-                                        // Check for matching accepted tags
-                                        if (rules.folder_match.accept && !tags.some(t => {
-                                            return rules.folder_match.accept.some(rule => tagMatchesRule(t, rule));
-                                        })) {
-                                            console.error(`Found tag match for folder ${rules.folder_match.destination}`);
-                                            return rules.folder_match.destination;
-                                        }
+                                            // Check for matching accepted tags
+                                            if (folderRule.accept && tags.some(t => {
+                                                return folderRule.accept.some(rule => tagMatchesRule(t, rule));
+                                            })) {
+                                                console.error(`Found tag match for folder!`);
+                                                return folderRule.destination;
+                                            }
 
-                                        // Check for matching accepted tag pairs
-                                        if (rules.folder_match.accept_pairs && rules.folder_match.accept_pairs.some(pair => {
-                                            return pair.every(p => tags.some(t => tagMatchesRule(t, p)));
-                                        })) {
-                                            console.error(`Found tag pair match for folder ${rules.folder_match.destination}`);
-                                            return rules.folder_match.destination;
+                                            // Check for matching accepted tag pairs
+                                            if (folderRule.accept_pairs && folderRule.accept_pairs.some(pair => {
+                                                return pair.every(p => tags.some(t => tagMatchesRule(t, p)));
+                                            })) {
+                                                console.error(`Found tag pair match for folder!`);
+                                                return folderRule.destination;
+                                            }
                                         }
                                     }
-                                    return undefined;
+
+                                    return undefined; // No matches found, return false
                                 })();
+
 
                                 let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
                                 if (result) {
