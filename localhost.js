@@ -1832,7 +1832,7 @@
                                         if (rules.folder_match.accept && !tags.some(t => {
                                             return rules.folder_match.accept.some(rule => tagMatchesRule(t, rule));
                                         })) {
-                                            console.error(`Found tag match for folder!`);
+                                            console.error(`Found tag match for folder ${rules.folder_match.destination}`);
                                             return rules.folder_match.destination;
                                         }
 
@@ -1840,7 +1840,7 @@
                                         if (rules.folder_match.accept_pairs && rules.folder_match.accept_pairs.some(pair => {
                                             return pair.every(p => tags.some(t => tagMatchesRule(t, p)));
                                         })) {
-                                            console.error(`Found tag pair match for folder!`);
+                                            console.error(`Found tag pair match for folder ${rules.folder_match.destination}`);
                                             return rules.folder_match.destination;
                                         }
                                     }
