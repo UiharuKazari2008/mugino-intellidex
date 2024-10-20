@@ -248,14 +248,25 @@
                         delete warnedImages[path.basename(filePath)];
                     if (filePath.split('/').pop().split('\\').pop().endsWith('.json') && filePath.split('/').pop().split('\\').pop().startsWith('query-')) {
                         const eid = path.basename(filePath).split('query-').pop().split('.')[0];
+                        const message = (await sqlPromiseSafe(`SELECT * FROM kanmi_records WHERE eid = ?`, [eid])).rows;
                         const jsonFilePath = path.resolve(filePath);
                         const imageFile = fs.readdirSync(systemglobal.deepbooru_input_path)
                             .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                         const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
+                        let extra = '';
+                        if (message.length > 0) {
+                            const rs = await parseResultsForQuery(message[0].channel, tagResults)
+                            if (!rs.approval) {
+                                extra += ', hidden = 1'
+                                console.log(`Entity ${eid} will be hidden!`);
+                            }
+                            if (rs.folder)
+                                extra += `, fid = ${rs.folder}`
+                        }
                         let tagString = (Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ') + '; ');
                         let safety = null;
                         console.log(`Entity ${eid} has ${Object.keys(tagResults).length} tags!`);
-                        await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ?, safety = ? WHERE eid = ?`, [tagString, safety, eid])
+                        await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ?, safety = ?${extra} WHERE eid = ?`, [tagString, safety, eid])
                         Object.keys(tagResults).map(async k => {
                             const r = tagResults[k];
                             await addTagForEid(eid, k, r);
@@ -1863,15 +1874,6 @@
                                             messageChannelFolder: folderMatch
                                         }
                                     });
-                                } else if (bypass) {
-                                    console.error(`Bypassing, Unable to parse tags for ${key}`);
-                                    ok({
-                                        destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
-                                        message: {
-                                            fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
-                                            ...data.message
-                                        }
-                                    });
                                 } else {
                                     ok(false)
                                 }
@@ -1900,6 +1902,126 @@
             })
         }
         return false;
+    }
+    async function parseResultsForQuery(channel, results) {
+        if (channel) {
+            return await new Promise(ok => {
+                if (results) {
+                    const tags = Object.keys(results);
+                    const rules = ruleSets.get(channel);
+                    const tagMatchesRule = (t, rule) => {
+                        if (rule.startsWith('s:')) {
+                            return t.startsWith(rule.slice(2));
+                        } else if (rule.startsWith('e:')) {
+                            return t.endsWith(rule.slice(2));
+                        } else {
+                            return rule === t;
+                        }
+                    };
+                    const result = (() => {
+                        if (rules && rules.accept && tags.filter(t => {
+                            return rules.accept.some(rule => {
+                                if (rule.startsWith('s:')) {
+                                    // Check if the tag starts with the specified string after 's:'
+                                    return t.startsWith(rule.slice(2));
+                                } else if (rule.startsWith('e:')) {
+                                    // Check if the tag ends with the specified string after 'e:'
+                                    return t.endsWith(rule.slice(2));
+                                } else {
+                                    // Regular match (exact match)
+                                    return rule === t;
+                                }
+                            });
+                        }).length === 0) {
+                            console.error(`Did not find approved tags "${tags}"`);
+                            return false;
+                        }
+                        if (rules && rules.block && tags.some(t => {
+                            return rules.block.some(rule => {
+                                if (rule.startsWith('s:')) {
+                                    // Block if the tag starts with the specified string after 's:'
+                                    return t.startsWith(rule.slice(2));
+                                } else if (rule.startsWith('e:')) {
+                                    // Block if the tag ends with the specified string after 'e:'
+                                    return t.endsWith(rule.slice(2));
+                                } else {
+                                    // Regular match (exact match)
+                                    return rule === t;
+                                }
+                            });
+                        })) {
+                            console.error(`Found blocked tags "${tags.filter(t => rules.block.some(rule => {
+                                if (rule.startsWith('s:')) {
+                                    return t.startsWith(rule.slice(2));
+                                } else if (rule.startsWith('e:')) {
+                                    return t.endsWith(rule.slice(2));
+                                } else {
+                                    return rule === t;
+                                }
+                            })).join(' ')}"`);
+                            return false;
+                        }
+                        if (rules && rules.block_pairs && rules.block_pairs.map(ph => ph.map(p => tags.filter(t => (p.indexOf(t) !== -1)).length).filter(g => !g).length).filter(h => h === 0).length > 0) {
+                            console.error(`Found a blocked pair of tags "${rules.block_pairs.join(' + ')}"`)
+                            return false;
+                        }
+                        if (rules && rules.min_count && tags.length < rules.min_count) {
+                            console.error(`Did not find enough tags (${tags.length})`)
+                            return false;
+                        }
+                        if (rules && rules.max_count && tags.length >= rules.max_count) {
+                            console.error(`Returned to many tags (${tags.length}): Possible tag flood`)
+                            return false;
+                        }
+                        return true;
+                    })()
+                    const folderMatch = (() => {
+                        if (rules && Array.isArray(rules.folder_match)) {
+                            for (let folderRule of rules.folder_match) {
+                                // Check min and max count
+                                if (folderRule.min_count && tags.length < folderRule.min_count) {
+                                    continue; // Skip to the next folderRule if it doesn't meet the min_count
+                                }
+                                if (folderRule.max_count && tags.length >= folderRule.max_count) {
+                                    continue; // Skip to the next folderRule if it exceeds the max_count
+                                }
+
+                                // Check for matching accepted tags
+                                if (folderRule.accept && tags.some(t => {
+                                    return folderRule.accept.some(rule => tagMatchesRule(t, rule));
+                                })) {
+                                    console.error(`Found tag match for folder ${folderRule.destination}`);
+                                    return folderRule.destination;
+                                }
+
+                                // Check for matching accepted tag pairs
+                                if (folderRule.accept_pairs && folderRule.accept_pairs.some(pair => {
+                                    return pair.every(p => tags.some(t => tagMatchesRule(t, p)));
+                                })) {
+                                    console.error(`Found tag pair match for folder ${folderRule.destination}`);
+                                    return folderRule.destination;
+                                }
+                            }
+                        }
+
+                        return undefined; // No matches found, return false
+                    })();
+                    if (folderMatch)
+                        console.log('Adding to folder: ' + folderMatch);
+                    ok({
+                        approval: result,
+                        folder: folderMatch
+                    });
+                } else {
+                    ok({
+                        approval: true
+                    })
+                }
+            })
+        }
+        return {
+            approval: true
+        };
     }
     async function validateImageInputs() {
         console.log("Validating Image Inputs...");
