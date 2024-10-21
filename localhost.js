@@ -259,6 +259,8 @@
                             if (!rs.approval) {
                                 extra += ', hidden = 1'
                                 console.log(`Entity ${eid} will be hidden!`);
+                            } else {
+                                console.log(`Entity ${eid} was approved!`);
                             }
                             if (rs.folder)
                                 extra += `, fid = ${rs.folder}`
