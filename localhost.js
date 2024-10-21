@@ -1773,23 +1773,6 @@
                                     }
                                 };
                                 const result = (() => {
-                                    if (rules && rules.accept && tags.filter(t => {
-                                        return rules.accept.some(rule => {
-                                            if (rule.startsWith('s:')) {
-                                                // Check if the tag starts with the specified string after 's:'
-                                                return t.startsWith(rule.slice(2));
-                                            } else if (rule.startsWith('e:')) {
-                                                // Check if the tag ends with the specified string after 'e:'
-                                                return t.endsWith(rule.slice(2));
-                                            } else {
-                                                // Regular match (exact match)
-                                                return rule === t;
-                                            }
-                                        });
-                                    }).length === 0) {
-                                        console.error(`Did not find approved tags "${tags}"`);
-                                        return false;
-                                    }
                                     if (rules && rules.block && tags.some(t => {
                                         return rules.block.some(rule => {
                                             if (rule.startsWith('s:')) {
@@ -1825,6 +1808,23 @@
                                     }
                                     if (rules && rules.max_count && tags.length >= rules.max_count) {
                                         console.error(`Returned to many tags (${tags.length}): Possible tag flood`)
+                                        return false;
+                                    }
+                                    if (rules && rules.accept && tags.filter(t => {
+                                        return rules.accept.some(rule => {
+                                            if (rule.startsWith('s:')) {
+                                                // Check if the tag starts with the specified string after 's:'
+                                                return t.startsWith(rule.slice(2));
+                                            } else if (rule.startsWith('e:')) {
+                                                // Check if the tag ends with the specified string after 'e:'
+                                                return t.endsWith(rule.slice(2));
+                                            } else {
+                                                // Regular match (exact match)
+                                                return rule === t;
+                                            }
+                                        });
+                                    }).length === 0) {
+                                        console.error(`Did not find approved tags "${tags}"`);
                                         return false;
                                     }
                                     return true;
@@ -1919,23 +1919,6 @@
                         }
                     };
                     const result = (() => {
-                        if (rules && rules.accept && tags.filter(t => {
-                            return rules.accept.some(rule => {
-                                if (rule.startsWith('s:')) {
-                                    // Check if the tag starts with the specified string after 's:'
-                                    return t.startsWith(rule.slice(2));
-                                } else if (rule.startsWith('e:')) {
-                                    // Check if the tag ends with the specified string after 'e:'
-                                    return t.endsWith(rule.slice(2));
-                                } else {
-                                    // Regular match (exact match)
-                                    return rule === t;
-                                }
-                            });
-                        }).length === 0) {
-                            console.error(`Did not find approved tags "${tags}"`);
-                            return false;
-                        }
                         if (rules && rules.block && tags.some(t => {
                             return rules.block.some(rule => {
                                 if (rule.startsWith('s:')) {
@@ -1971,6 +1954,23 @@
                         }
                         if (rules && rules.max_count && tags.length >= rules.max_count) {
                             console.error(`Returned to many tags (${tags.length}): Possible tag flood`)
+                            return false;
+                        }
+                        if (rules && rules.accept && tags.filter(t => {
+                            return rules.accept.some(rule => {
+                                if (rule.startsWith('s:')) {
+                                    // Check if the tag starts with the specified string after 's:'
+                                    return t.startsWith(rule.slice(2));
+                                } else if (rule.startsWith('e:')) {
+                                    // Check if the tag ends with the specified string after 'e:'
+                                    return t.endsWith(rule.slice(2));
+                                } else {
+                                    // Regular match (exact match)
+                                    return rule === t;
+                                }
+                            });
+                        }).length === 0) {
+                            console.error(`Did not find approved tags "${tags}"`);
                             return false;
                         }
                         return true;
