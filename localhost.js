@@ -35,10 +35,24 @@
     const LOG_FILE_PATH = path.join(__dirname, 'logs.json');
     const MAX_LOG_ENTRIES = 10000;
 
+    function formatLogMessage(level, message) {
+        // If the message is an object, convert it to stringified JSON
+        if (typeof message === 'object') {
+            message = JSON.stringify(message);
+        }
+
+        // If it's an error object with a "message" property, extract it
+        if (level === 'error' && typeof message === 'object' && message.message) {
+            message = message.message;
+        }
+
+        return message;
+    }
     // Custom logger function
     function customLogger(level, message) {
         const timestamp = new Date();
-        const logEntry = { error: level === 'error', message, time: timestamp };
+        const formattedMessage = formatLogMessage(level, message);
+        const logEntry = { error: level === 'error', message: formattedMessage, time: timestamp };
 
         // Save to console
         console[level](message);
@@ -57,7 +71,7 @@
 
     const app = express();
 
-// Schedule a cron job to clean up logs every hour
+    // Schedule a cron job to clean up logs every hour
     cron.schedule('0 * * * *', () => {
         const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
         if (logs.length > MAX_LOG_ENTRIES) {
@@ -87,7 +101,7 @@
         res.send(`
     <html>
       <head>
-        <title>Log Viewer</title>
+        <title>Mugino MIITS Log Viewer</title>
         <style>
           table { width: 100%; border-collapse: collapse; }
           th, td { padding: 8px; border: 1px solid #ddd; }
@@ -95,7 +109,8 @@
         </style>
       </head>
       <body>
-        <h1>Log Viewer</h1>
+        <h1>Mugino Log Viewer</h1>
+        <h4>Uptime: ${((Date.now() - bootTime) / 60000).toFixed(2)} // Total Parsed: ${totalItems}</h4>
         <table>
           <thead>
             <tr>
@@ -112,7 +127,7 @@
   `);
     });
 
-// Initialize log file if not exists
+    // Initialize log file if not exists
     if (!fs.existsSync(LOG_FILE_PATH)) {
         fs.writeFileSync(LOG_FILE_PATH, '[]');
     }
