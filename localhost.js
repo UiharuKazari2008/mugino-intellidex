@@ -84,44 +84,50 @@
     app.get('/log', (req, res) => {
         const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
 
-        const logTable = logs
+        const logDivs = logs
             .reverse()
             .map((log) => {
                 const timeFromNow = moment(log.time).fromNow();
-                const color = log.error ? 'red' : 'black';
+                const color = log.error ? 'error-message' : '';
                 return `
-        <tr style="color: ${color}">
-          <td>${timeFromNow}</td>
-          <td>${log.message}</td>
-        </tr>
-      `;
+        <div class="log-row">
+          <div class="log-cell time">${timeFromNow}</div>
+          <div class="log-cell message ${color}">${log.message}</div>
+        </div>`;
             })
             .join('');
 
         res.send(`
     <html>
       <head>
-        <title>Mugino MIITS Log Viewer</title>
+        <title>Log Viewer</title>
         <style>
-          table { width: 100%; border-collapse: collapse; }
-          th, td { padding: 8px; border: 1px solid #ddd; }
-          th { background-color: #f4f4f4; }
+          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+          .log-container { display: flex; flex-direction: column; width: 100%; }
+          .log-header { display: flex; font-weight: bold; background-color: #f4f4f4; padding: 10px; }
+          .log-row { display: flex; padding: 10px; border-bottom: 1px solid #ddd; }
+          .log-cell { flex: 1; padding: 5px; overflow-wrap: break-word; }
+          .time { width: 200px; min-width: 150px; }
+          .message { flex-grow: 1; }
+          .message { white-space: pre-wrap; } /* Ensure message wraps */
         </style>
       </head>
       <body>
-        <h1>Mugino Log Viewer</h1>
-        <h4>Uptime: ${((Date.now() - bootTime) / 60000).toFixed(2)} // Total Parsed: ${totalItems}</h4>
-        <table>
-          <thead>
-            <tr>
-              <th>Time from Now</th>
-              <th>Message</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${logTable}
-          </tbody>
-        </table>
+        <div class="heading">
+            <span class="service-name">Mugino Log Viewer</>
+            <div class="service-info">
+                <span>Uptime: ${((Date.now() - bootTime) / 60000).toFixed(2)}</span>
+                <span>Total Parsed: ${totalItems}</span>
+                <span>Parse Load: ${pastJobs.reverse().slice(0,5).map(e => e.items)}</span>
+            </div>
+        </div>
+        <div class="log-container">
+          <div class="log-header">
+            <div class="log-cell time">Time from Now</div>
+            <div class="log-cell message">Message</div>
+          </div>
+          ${logDivs}
+        </div>
       </body>
     </html>
   `);
@@ -1860,11 +1866,11 @@
                                 const tags = Object.keys(results);
                                 const rules = ruleSets.get(data.message.messageChannelID);
                                 if (systemglobal.debug) {
-                                    customLogger('log', `=== Evaluate Message ===`)
-                                    customLogger('log', `TEXT: ${data.message.messageText}`)
-                                    customLogger('log', `TAGS: ${tags}`)
-                                    customLogger('log', `RULES: ${JSON.stringify(rules)}`)
-                                    customLogger('log', `========================`)
+                                    console.log(`=== Evaluate Message ===`)
+                                    console.log(`TEXT: ${data.message.messageText}`)
+                                    console.log(`TAGS: ${tags}`)
+                                    console.log(`RULES: ${JSON.stringify(rules)}`)
+                                    console.log(`========================`)
                                 }
                                 const tagMatchesRule = (t, rule) => {
                                     if (rule.startsWith('s:')) {
