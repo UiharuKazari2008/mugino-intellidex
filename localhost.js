@@ -105,7 +105,7 @@
         res.send(`
     <html>
       <head>
-        <title>Log Viewer</title>
+        <title>Mugino Machine Intelligence Deep Image Tagging System (MIITS)</title>
         <style>
           body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: black; color: white; }
           .log-container { display: flex; flex-direction: column; width: 100%; }
@@ -131,11 +131,29 @@
           .log-cell { flex: 1; padding: 5px; overflow-wrap: break-word; }
           .message { flex-grow: 1; }
           .message { white-space: pre-wrap; } /* Ensure message wraps */
+          span.service-name {
+    color: #3bff3b;
+    font-size: 24pt;
+}
+.service-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+}
+.heading {
+    display: flex;
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1em;
+}
         </style>
       </head>
       <body>
         <div class="heading">
-            <span class="service-name">Mugino Log Viewer</span>
+            <span class="service-name">Mugino MIITS System (${systemglobal.system_name})</span>
             <div class="service-info">
                 <span>Uptime: ${((Date.now() - bootTime) / 60000).toFixed(2)}</span>
                 <span>Total Parsed: ${totalItems}</span>
