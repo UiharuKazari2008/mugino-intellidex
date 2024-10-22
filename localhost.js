@@ -149,15 +149,24 @@
     align-items: center;
     padding-bottom: 1em;
 }
+.color-message-green {
+    color: #a3ffa3;
+}
+.color-message-red {
+    color: #ffa3a3;
+}
+.color-message-cyan {
+    color: #2daaff;
+}
         </style>
       </head>
       <body>
         <div class="heading">
             <span class="service-name">Mugino MIITS System (${systemglobal.system_name})</span>
             <div class="service-info">
-                <span>Uptime: ${((Date.now() - bootTime) / 60000).toFixed(2)}</span>
+                <span>Uptime: ${((Date.now() - bootTime) / 60000).toFixed(2)} Min</span>
                 <span>Total Parsed: ${totalItems}</span>
-                <span>Parse Load: ${pastJobs.reverse().slice(0,5).map(e => e.items)}</span>
+                <span>Parse Load: ${pastJobs.reverse().slice(0, 5).map(e => e.items)}</span>
             </div>
         </div>
         <div class="log-container">
@@ -2014,7 +2023,7 @@
                                     return undefined; // No matches found, return false
                                 })();
                                 if (folderMatch)
-                                    customLogger('log', 'Adding to folder: ' + folderMatch);
+                                    customLogger('log', 'Adding to folder: ' + folderMatch, 'cyan');
 
                                 const channelMatch = (() => {
                                     if (rules && Array.isArray(rules.channel_match)) {
@@ -2053,7 +2062,7 @@
                                     return undefined; // No matches found, return false
                                 })();
                                 if (channelMatch)
-                                    customLogger('log', 'Redirecting to channel: ' + channelMatch);
+                                    customLogger('log', 'Redirecting to channel: ' + channelMatch, 'cyan');
 
                                 let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
                                 if (result) {
