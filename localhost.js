@@ -294,23 +294,18 @@
                         const approved = await parseResultsForMessage(key, tagResults);
                         console.error(`Message ${key} has ${Object.keys(tagResults).length} tags!`);
                         if (approved) {
-                            mqClient.sendData(`${approved.destination}`, approved.message, function (ok) {
-                            });
-                            console.error(`Message ${key} was approved!`);
+                            mqClient.sendData(`${approved.destination}`, approved.message, function (ok) { });
+                            console.log(`Message ${key} was approved!`.green.bgBlack);
                         } else {
-                            console.error(`Message ${key} was denied!`);
+                            console.error(`Message ${key} was denied! Will not be delivered!`.white.bgRed);
                         }
                         try {
                             fs.unlinkSync(jsonFilePath);
-                        } catch (e) {
-
-                        }
+                        } catch (e) { }
                         try {
                             if (imageFile)
                                 fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, (imageFile)));
-                        } catch (e) {
-
-                        }
+                        } catch (e) { }
                         await LocalQueue.removeItem(key);
                     } else if ((filePath.split('/').pop().split('\\').pop().endsWith('.jpg') || filePath.split('/').pop().split('\\').pop().endsWith('.png')) && filePath.split('/').pop().split('\\').pop().startsWith('upscale-')) {
                         const key = path.basename(filePath).split('upscale-').pop().split('.')[0];
@@ -1857,9 +1852,14 @@
                                                 console.error(`Found tag pair match for folder ${folderRule.destination}`);
                                                 return folderRule.destination;
                                             }
+
+                                            // Check for matching accepted tag pairs
+                                            if (folderRule.text && data.message.messageText && folderRule.text.some(txt => data.message.messageText.toLowerCase().includes(txt.toLowerCase()))) {
+                                                console.error(`Found text string match for folder ${folderRule.destination}`);
+                                                return folderRule.destination;
+                                            }
                                         }
                                     }
-
                                     return undefined; // No matches found, return false
                                 })();
                                 if (folderMatch)
