@@ -229,7 +229,7 @@
         setTimeout(loadDatabaseCache, 1200000)
     }
     await loadDatabaseCache();
-    customLogger('log', systemglobal);
+    console.log(systemglobal);
 
     function checkMemoryUsage() {
         const totalMemory = os.totalmem(); // Total memory in bytes
