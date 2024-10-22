@@ -123,7 +123,8 @@
         const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
 
         const logDivs = logs
-            .reverse().slice(0,1000)
+            .reverse()
+            .slice(0,1000)
             .map((log) => {
                 const timeFromNow = moment(log.time).format('DD/MMM HH:mm:ss');
                 const color = log.color ? ('color-message-' + log.color) : log.error ? 'error-message' : '';
