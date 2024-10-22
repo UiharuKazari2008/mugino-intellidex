@@ -2071,7 +2071,6 @@
                                         message: {
                                             fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
                                             ...data.message,
-                                            messageChannelID: channelMatch || data.messageChannelID,
                                             messageTags: tagString,
                                             messageChannelFolder: folderMatch
                                         }
