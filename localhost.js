@@ -55,6 +55,8 @@
         fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2));
     }
 
+    const app = express();
+
 // Schedule a cron job to clean up logs every hour
     cron.schedule('0 * * * *', () => {
         const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
@@ -124,8 +126,6 @@
             customLogger('error', "Error Reading Catch List: ", e.message)
         }
     }
-
-    const app = express();
 
     app.use(express.static(path.join('./utils/models/')));
 
