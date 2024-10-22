@@ -206,7 +206,7 @@
             logContainer.insertBefore(newLog, logHeader.nextSibling);
             if (logData.stats) {
                 if (logData.stats.uptime) {
-                    document.getElementById('updateData').innerText = \`Uptime: \${logData.stats.uptime} Min\`;
+                    document.getElementById('uptimeData').innerText = \`Uptime: \${logData.stats.uptime} Min\`;
                 }
                 if (logData.stats.uptime) {
                     document.getElementById('totalData').innerText = \`Total Parsed: \${logData.stats.total}\`;
