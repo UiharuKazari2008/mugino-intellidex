@@ -19,6 +19,7 @@
     const { DiscordSnowflake } = require('@sapphire/snowflake');
     const crypto = require('crypto');
     const express = require('express');
+    const WebSocket = require('ws');
     const cron = require('node-cron');
     const moment = require('moment');
     const jpeg = require('jpeg-js');
@@ -72,9 +73,17 @@
         }
 
         fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2));
+        const logData = { error: logEntry.error, message: logEntry.message, time: moment(logEntry.time).fromNow() };
+        wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify(logData));
+            }
+        });
     }
 
     const app = express();
+    const server = require('http').createServer(app);
+    const wss = new WebSocket.Server({ server });
 
     // Schedule a cron job to clean up logs every hour
     cron.schedule('0 * * * *', () => {
@@ -159,6 +168,19 @@
     color: #2daaff;
 }
         </style>
+        <script>
+          const ws = new WebSocket('ws://' + window.location.host);
+          ws.onmessage = (event) => {
+            const logData = JSON.parse(event.data);
+            const logContainer = document.querySelector('.log-container');
+            const color = logData.color ? ('color-message-' + logData.color) : logData.error ? 'error-message' : '';
+            const newLog = document.createElement('div');
+            newLog.className = 'log-row';
+            newLog.innerHTML = \`<div class = "log-cell time" >\${logData.time}</div>
+            <div class="log-cell message \${color}">\${logData.message}</div>\`;
+            logContainer.prepend(newLog);
+          };
+        </script>
       </head>
       <body>
         <div class="heading">
@@ -1072,7 +1094,7 @@
         app.get('/', async (req, res) => {
             res.status(200).send("Mugino MIITS!");
         })
-        const server = app.listen(9052, '0.0.0.0',async function (err) {
+        server.listen(9052, '0.0.0.0',async function (err) {
             if (err) {
                 customLogger('log', 'App listening error ', err);
             } else {
