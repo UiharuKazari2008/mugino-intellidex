@@ -19,6 +19,8 @@
     const { DiscordSnowflake } = require('@sapphire/snowflake');
     const crypto = require('crypto');
     const express = require('express');
+    const cron = require('node-cron');
+    const moment = require('moment');
     const jpeg = require('jpeg-js');
     const os = require('os');
     const globalRunKey = crypto.randomBytes(5).toString("hex");
@@ -30,6 +32,91 @@
     let warnedImages = [];
     let totalItems = 0;
     const bootTime = Date.now();
+    const LOG_FILE_PATH = path.join(__dirname, 'logs.json');
+    const MAX_LOG_ENTRIES = 10000;
+
+    // Custom logger function
+    function customLogger(level, message) {
+        const timestamp = new Date();
+        const logEntry = { error: level === 'error', message, time: timestamp };
+
+        // Save to console
+        console[level](message);
+
+        // Save to file
+        const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
+        logs.push(logEntry);
+
+        // Keep only the last 10,000 entries
+        if (logs.length > MAX_LOG_ENTRIES) {
+            logs.splice(0, logs.length - MAX_LOG_ENTRIES);
+        }
+
+        fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2));
+    }
+    // Override console.log and console.error
+    console.log = (message) => customLogger('log', message);
+    console.error = (message) => customLogger('error', message);
+
+// Schedule a cron job to clean up logs every hour
+    cron.schedule('0 * * * *', () => {
+        const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
+        if (logs.length > MAX_LOG_ENTRIES) {
+            const updatedLogs = logs.slice(-MAX_LOG_ENTRIES);
+            fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(updatedLogs, null, 2));
+            console.log('Log file cleaned up to keep the last 10,000 entries.');
+        }
+    });
+    // Express route to view logs
+    app.get('/log', (req, res) => {
+        const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
+
+        const logTable = logs
+            .reverse()
+            .map((log) => {
+                const timeFromNow = moment(log.time).fromNow();
+                const color = log.error ? 'red' : 'black';
+                return `
+        <tr style="color: ${color}">
+          <td>${timeFromNow}</td>
+          <td>${log.message}</td>
+        </tr>
+      `;
+            })
+            .join('');
+
+        res.send(`
+    <html>
+      <head>
+        <title>Log Viewer</title>
+        <style>
+          table { width: 100%; border-collapse: collapse; }
+          th, td { padding: 8px; border: 1px solid #ddd; }
+          th { background-color: #f4f4f4; }
+        </style>
+      </head>
+      <body>
+        <h1>Log Viewer</h1>
+        <table>
+          <thead>
+            <tr>
+              <th>Time from Now</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${logTable}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `);
+    });
+
+// Initialize log file if not exists
+    if (!fs.existsSync(LOG_FILE_PATH)) {
+        fs.writeFileSync(LOG_FILE_PATH, '[]');
+    }
 
     if (fs.existsSync(path.join('./', 'watchedFiles.json'))) {
         try {
