@@ -101,6 +101,11 @@
             day: calculateTotalItems(twentyFourHours),
             uptime: ((Date.now() - bootTime) / 60000).toFixed(2)
         }
+        wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({ stats }));
+            }
+        });
     }
     updateStats();
     setInterval(updateStats, 30000);
@@ -197,14 +202,16 @@
           const ws = new WebSocket('ws://' + window.location.host);
           ws.onmessage = (event) => {
             const logData = JSON.parse(event.data);
-            const color = logData.color ? ('color-message-' + logData.color) : logData.error ? 'error-message' : '';
-            const newLog = document.createElement('div');
-            newLog.className = 'log-row';
-            newLog.innerHTML = \`<div class = "log-cell time" >\${logData.time}</div>
-            <div class="log-cell message \${color}">\${logData.message}</div>\`;
-            const logContainer = document.querySelector('.log-container');
-            const logHeader = document.querySelector('.log-header');
-            logContainer.insertBefore(newLog, logHeader.nextSibling);
+            if (logData.message) {
+                const color = logData.color ? ('color-message-' + logData.color) : logData.error ? 'error-message' : '';
+                const newLog = document.createElement('div');
+                newLog.className = 'log-row';
+                newLog.innerHTML = \`<div class = "log-cell time" >\${logData.time}</div>
+                <div class="log-cell message \${color}">\${logData.message}</div>\`;
+                const logContainer = document.querySelector('.log-container');
+                const logHeader = document.querySelector('.log-header');
+                logContainer.insertBefore(newLog, logHeader.nextSibling);
+            }
             if (logData.stats) {
                 if (logData.stats.uptime) {
                     document.getElementById('uptimeData').innerText = \`Uptime: \${logData.stats.uptime} Min\`;
