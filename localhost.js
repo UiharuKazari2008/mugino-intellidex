@@ -49,13 +49,18 @@
         return message;
     }
     // Custom logger function
-    function customLogger(level, message) {
+    function customLogger(level, message, color) {
         const timestamp = new Date();
         const formattedMessage = formatLogMessage(level, message);
-        const logEntry = { error: level === 'error', message: formattedMessage, time: timestamp };
+        const logEntry = { error: level === 'error', message: formattedMessage, time: timestamp, color };
 
         // Save to console
-        console[level](message);
+        if (color && color === 'red')
+            console[level](message.white.bgRed);
+        else if (color && color === 'green')
+            console[level](message.green.bgBlack);
+        else
+            console[level](message);
 
         // Save to file
         const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
@@ -81,7 +86,7 @@
         }
     });
     // Express route to view logs
-    app.get('/log', (req, res) => {
+    app.get('/', (req, res) => {
         const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
 
         const logDivs = logs
@@ -102,19 +107,35 @@
       <head>
         <title>Log Viewer</title>
         <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: black; color: white; }
           .log-container { display: flex; flex-direction: column; width: 100%; }
-          .log-header { display: flex; font-weight: bold; background-color: #f4f4f4; padding: 10px; }
-          .log-row { display: flex; padding: 10px; border-bottom: 1px solid #ddd; }
+        .log-header {
+            display: flex;
+            font-weight: bold;
+            background-color: #007717;
+            padding: 10px;
+        }
+        .log-row {
+            display: flex;
+            padding: 2px 10px;
+            border-bottom: 1px solid #087719;
+        }
+        .message.error-message {
+            background: #730000;
+        }
+        .time {
+            min-width: 150px;
+            max-width: 150px;
+            opacity: 0.65;
+        }
           .log-cell { flex: 1; padding: 5px; overflow-wrap: break-word; }
-          .time { width: 200px; min-width: 150px; }
           .message { flex-grow: 1; }
           .message { white-space: pre-wrap; } /* Ensure message wraps */
         </style>
       </head>
       <body>
         <div class="heading">
-            <span class="service-name">Mugino Log Viewer</>
+            <span class="service-name">Mugino Log Viewer</span>
             <div class="service-info">
                 <span>Uptime: ${((Date.now() - bootTime) / 60000).toFixed(2)}</span>
                 <span>Total Parsed: ${totalItems}</span>
@@ -397,12 +418,12 @@
                             .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                         const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
                         const approved = await parseResultsForMessage(key, tagResults);
-                        customLogger('error', `Message ${key} has ${Object.keys(tagResults).length} tags!`);
+                        customLogger('log', `Message ${key} has ${Object.keys(tagResults).length} tags!`);
                         if (approved) {
                             mqClient.sendData(`${approved.destination}`, approved.message, function (ok) { });
-                            customLogger('log', `Message ${key} was approved!`.green.bgBlack);
+                            customLogger('log', `Message ${key} was approved!`, 'green');
                         } else {
-                            customLogger('error', `Message ${key} was denied! Will not be delivered!`.white.bgRed);
+                            customLogger('error', `Message ${key} was denied! Will not be delivered!`, 'red');
                         }
                         try {
                             fs.unlinkSync(jsonFilePath);
