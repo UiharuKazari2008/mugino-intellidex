@@ -1865,6 +1865,45 @@
                                 if (folderMatch)
                                     console.log('Adding to folder: ' + folderMatch);
 
+                                const channelMatch = (() => {
+                                    if (rules && Array.isArray(rules.channel_match)) {
+                                        for (let channelRule of rules.channel_match) {
+                                            // Check min and max count
+                                            if (channelRule.min_count && tags.length < channelRule.min_count) {
+                                                continue; // Skip to the next folderRule if it doesn't meet the min_count
+                                            }
+                                            if (channelRule.max_count && tags.length >= channelRule.max_count) {
+                                                continue; // Skip to the next folderRule if it exceeds the max_count
+                                            }
+
+                                            // Check for matching accepted tags
+                                            if (channelRule.accept && tags.some(t => {
+                                                return channelRule.accept.some(rule => tagMatchesRule(t, rule));
+                                            })) {
+                                                console.error(`Found tag match for folder ${folderRule.destination}`);
+                                                return channelRule.destination;
+                                            }
+
+                                            // Check for matching accepted tag pairs
+                                            if (channelRule.accept_pairs && channelRule.accept_pairs.some(pair => {
+                                                return pair.every(p => tags.some(t => tagMatchesRule(t, p)));
+                                            })) {
+                                                console.error(`Found tag pair match for folder ${channelRule.destination}`);
+                                                return channelRule.destination;
+                                            }
+
+                                            // Check for matching accepted tag pairs
+                                            if (channelRule.text && data.message.messageText && channelRule.text.some(txt => data.message.messageText.toLowerCase().includes(txt.toLowerCase()))) {
+                                                console.error(`Found text string match for folder ${channelRule.destination}`);
+                                                return channelRule.destination;
+                                            }
+                                        }
+                                    }
+                                    return undefined; // No matches found, return false
+                                })();
+                                if (channelMatch)
+                                    console.log('Redirecting to channel: ' + channelMatch);
+
                                 let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
                                 if (result) {
                                     ok({
@@ -1872,6 +1911,7 @@
                                         message: {
                                             fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
                                             ...data.message,
+                                            messageChannelID: channelMatch || data.messageChannelID,
                                             messageTags: tagString,
                                             messageChannelFolder: folderMatch
                                         }
