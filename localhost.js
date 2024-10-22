@@ -73,13 +73,37 @@
         }
 
         fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2));
-        const logData = { error: logEntry.error, message: logEntry.message, time: moment(logEntry.time).fromNow() };
+        const logData = { error: logEntry.error, message: logEntry.message, time: moment(logEntry.time).format('DD/MMM HH:mm:ss'), color: logEntry.color, stats };
         wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(JSON.stringify(logData));
             }
         });
     }
+    let stats = {};
+    function updateStats() {
+        const now = Date.now();
+        const oneHour = 60 * 60 * 1000;
+        const fourHours = 4 * oneHour;
+        const twentyFourHours = 24 * oneHour;
+        const calculateTotalItems = (interval) => {
+            return pastJobs.reduce((total, job) => {
+                if (now - job.date <= interval) {
+                    return total + job.items;
+                }
+                return total;
+            }, 0);
+        };
+        stats = {
+            total: totalItems,
+            hour: calculateTotalItems(oneHour),
+            four_hour: calculateTotalItems(fourHours),
+            day: calculateTotalItems(twentyFourHours),
+            uptime: ((Date.now() - bootTime) / 60000).toFixed(2)
+        }
+    }
+    updateStats();
+    setInterval(updateStats, 30000);
 
     const app = express();
     const server = require('http').createServer(app);
@@ -101,7 +125,7 @@
         const logDivs = logs
             .reverse()
             .map((log) => {
-                const timeFromNow = moment(log.time).fromNow();
+                const timeFromNow = moment(log.time).format('DD/MMM HH:mm:ss');
                 const color = log.color ? ('color-message-' + log.color) : log.error ? 'error-message' : '';
                 return `
         <div class="log-row">
@@ -116,69 +140,81 @@
       <head>
         <title>Mugino Machine Intelligence Deep Image Tagging System (MIITS)</title>
         <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: black; color: white; }
-          .log-container { display: flex; flex-direction: column; width: 100%; }
-        .log-header {
-            display: flex;
-            font-weight: bold;
-            background-color: #007717;
-            padding: 10px;
-        }
-        .log-row {
-            display: flex;
-            padding: 2px 10px;
-            border-bottom: 1px solid #087719;
-        }
-        .message.error-message {
-            background: #730000;
-        }
-        .time {
-            min-width: 150px;
-            max-width: 150px;
-            opacity: 0.65;
-        }
-          .log-cell { flex: 1; padding: 5px; overflow-wrap: break-word; }
-          .message { flex-grow: 1; }
-          .message { white-space: pre-wrap; } /* Ensure message wraps */
-          span.service-name {
-    color: #3bff3b;
-    font-size: 24pt;
-}
-.service-info {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-end;
-}
-.heading {
-    display: flex;
-    width: 100%;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 1em;
-}
-.color-message-green {
-    color: #a3ffa3;
-}
-.color-message-red {
-    color: #ffa3a3;
-}
-.color-message-cyan {
-    color: #2daaff;
-}
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: black; color: white; }
+            .log-container { display: flex; flex-direction: column; width: 100%; }
+            .log-header {
+                display: flex;
+                font-weight: bold;
+                background-color: #007717;
+                padding: 10px;
+            }
+            .log-row {
+                display: flex;
+                padding: 2px 10px;
+                border-bottom: 1px solid #087719;
+            }
+            .message.error-message {
+                background: #730000;
+            }
+            .time {
+                min-width: 150px;
+                max-width: 150px;
+                opacity: 0.65;
+            }
+            .log-cell { flex: 1; padding: 5px; overflow-wrap: break-word; }
+            .message { flex-grow: 1; }
+            .message { white-space: pre-wrap; } /* Ensure message wraps */
+            span.service-name {
+                color: #3bff3b;
+                font-size: 24pt;
+            }
+            .service-info {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: flex-end;
+            }
+            .heading {
+                display: flex;
+                width: 100%;
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                padding-bottom: 1em;
+            }
+            .color-message-green {
+                color: #a3ffa3;
+            }
+            .color-message-red {
+                color: #ffa3a3;
+            }
+            .color-message-cyan {
+                color: #2daaff;
+            }
         </style>
         <script>
           const ws = new WebSocket('ws://' + window.location.host);
           ws.onmessage = (event) => {
             const logData = JSON.parse(event.data);
-            const logContainer = document.querySelector('.log-container');
             const color = logData.color ? ('color-message-' + logData.color) : logData.error ? 'error-message' : '';
             const newLog = document.createElement('div');
             newLog.className = 'log-row';
             newLog.innerHTML = \`<div class = "log-cell time" >\${logData.time}</div>
             <div class="log-cell message \${color}">\${logData.message}</div>\`;
-            logContainer.prepend(newLog);
+            const logContainer = document.querySelector('.log-container');
+            const logHeader = document.querySelector('.log-header');
+            logContainer.insertBefore(newLog, logHeader.nextSibling);
+            if (logData.stats) {
+                if (logData.stats.uptime) {
+                    document.getElementById('updateData').innerText = \`Uptime: ${logData.stats.uptime} Min\`;
+                }
+                if (logData.stats.uptime) {
+                    document.getElementById('totalData').innerText = \`Total Parsed: ${logData.stats.total}\`;
+                }
+                if (logData.stats.hour) {
+                    document.getElementById('loadData').innerText = \`Inbound Load: ${logData.stats.hour} // ${logData.stats.four_hour} // ${logData.stats.day} \`;
+                }
+            }
           };
         </script>
       </head>
@@ -186,9 +222,9 @@
         <div class="heading">
             <span class="service-name">Mugino MIITS System (${systemglobal.system_name})</span>
             <div class="service-info">
-                <span>Uptime: ${((Date.now() - bootTime) / 60000).toFixed(2)} Min</span>
-                <span>Total Parsed: ${totalItems}</span>
-                <span>Parse Load: ${pastJobs.reverse().slice(0, 5).map(e => e.items)}</span>
+                <span id="uptimeData">Uptime: ${stats.uptime} Min</span>
+                <span id="totalData">Total Parsed: ${stats.total}</span>
+                <span id="loadData">Inbound Load: ${stats.hour} // ${stats.four_hour} // ${stats.day}</span>
             </div>
         </div>
         <div class="log-container">
