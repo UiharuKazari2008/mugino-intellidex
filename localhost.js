@@ -107,12 +107,13 @@
             }
         });
     }
-    updateStats();
-    setInterval(updateStats, 30000);
 
     const app = express();
     const server = require('http').createServer(app);
     const wss = new WebSocket.Server({ server });
+
+    updateStats();
+    setInterval(updateStats, 30000);
 
     // Schedule a cron job to clean up logs every hour
     cron.schedule('0 * * * *', () => {
