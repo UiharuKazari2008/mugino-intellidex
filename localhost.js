@@ -1760,6 +1760,13 @@
                             if (results) {
                                 const tags = Object.keys(results);
                                 const rules = ruleSets.get(data.message.messageChannelID);
+                                if (systemglobal.debug) {
+                                    console.log(`=== Evaluate Message ===`)
+                                    console.log(`TEXT: ${data.message.messageText}`)
+                                    console.log(`TAGS: ${tags}`)
+                                    console.log(`RULES: ${JSON.stringify(rules)}`)
+                                    console.log(`========================`)
+                                }
                                 const tagMatchesRule = (t, rule) => {
                                     if (rule.startsWith('s:')) {
                                         return t.startsWith(rule.slice(2));
