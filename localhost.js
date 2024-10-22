@@ -206,13 +206,13 @@
             logContainer.insertBefore(newLog, logHeader.nextSibling);
             if (logData.stats) {
                 if (logData.stats.uptime) {
-                    document.getElementById('updateData').innerText = \`Uptime: ${logData.stats.uptime} Min\`;
+                    document.getElementById('updateData').innerText = \`Uptime: \${logData.stats.uptime} Min\`;
                 }
                 if (logData.stats.uptime) {
-                    document.getElementById('totalData').innerText = \`Total Parsed: ${logData.stats.total}\`;
+                    document.getElementById('totalData').innerText = \`Total Parsed: \${logData.stats.total}\`;
                 }
                 if (logData.stats.hour) {
-                    document.getElementById('loadData').innerText = \`Inbound Load: ${logData.stats.hour} // ${logData.stats.four_hour} // ${logData.stats.day} \`;
+                    document.getElementById('loadData').innerText = \`Inbound Load: \${logData.stats.hour} // \${logData.stats.four_hour} // \${logData.stats.day} \`;
                 }
             }
           };
