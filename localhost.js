@@ -93,7 +93,7 @@
             .reverse()
             .map((log) => {
                 const timeFromNow = moment(log.time).fromNow();
-                const color = log.error ? 'error-message' : '';
+                const color = log.color ? ('color-message-' + log.color) : log.error ? 'error-message' : '';
                 return `
         <div class="log-row">
           <div class="log-cell time">${timeFromNow}</div>
