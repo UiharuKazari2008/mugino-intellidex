@@ -54,7 +54,7 @@ function sendLog(proccess, text, level = 'debug', object, object2, color, no_ack
         message: text,
         level,
         time: new Date().valueOf(),
-        server_name: systemglobal.SystemName,
+        server_name: systemglobal.system_name,
         name: "MuginoMIITS",
         color,
         proccess,
