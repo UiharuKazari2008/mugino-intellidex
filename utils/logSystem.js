@@ -55,7 +55,7 @@ function sendLog(proccess, text, level = 'debug', object, object2, color, no_ack
         level,
         time: new Date().valueOf(),
         server_name: systemglobal.SystemName,
-        name: facility,
+        name: "MuginoMIITS",
         color,
         proccess,
         ack: !no_ack,
@@ -90,7 +90,7 @@ if (systemglobal.log_server) {
     remoteLogger = true
     connectToWebSocket('ws://' + systemglobal.log_server);
     sendLog('Init', `Forwarding logs to Othinus Server`, 'debug');
-    console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][Init] Forwarding logs to Othinus Server - ${facility}`.gray);
+    console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][Init] Forwarding logs to Othinus Server - MuginoMIITS`.gray);
 }
 
 async function printLine(proccess, text, level, object, object2, no_ack = false) {
