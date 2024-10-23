@@ -60,6 +60,8 @@
             console[level](message.white.bgRed);
         else if (color && color === 'green')
             console[level](message.green.bgBlack);
+        else if (color && color === 'cyan')
+            console[level](message.cyanBright.bgBlack);
         else
             console[level](message);
 
@@ -73,12 +75,17 @@
         }
 
         fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2));
+
         const logData = { error: logEntry.error, message: logEntry.message, time: moment(logEntry.time).format('DD/MMM HH:mm:ss'), color: logEntry.color, stats };
         wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(JSON.stringify(logData));
             }
         });
+    }
+    function dualLog(proccess, text, level, object, color) {
+        customLogger(((level === 'info' || level === 'debug' || level === 'warn') ? 'info' : 'error'), text, color);
+        Logger.printLine(proccess, text, level, object);
     }
     let stats = {};
     function updateStats() {
@@ -115,16 +122,14 @@
     updateStats();
     setInterval(updateStats, 30000);
 
-    // Schedule a cron job to clean up logs every hour
     cron.schedule('0 * * * *', () => {
         const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
         if (logs.length > MAX_LOG_ENTRIES) {
             const updatedLogs = logs.slice(-MAX_LOG_ENTRIES);
             fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(updatedLogs, null, 2));
-            customLogger('log', 'Log file cleaned up to keep the last 10,000 entries.');
+            dualLog('LogCleaer', 'Log file cleaned up to keep the last 10,000 entries.', 'log')
         }
     });
-    // Express route to view logs
     app.get('/', (req, res) => {
         const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
 
@@ -248,21 +253,18 @@
   `);
     });
 
-    // Initialize log file if not exists
     if (!fs.existsSync(LOG_FILE_PATH)) {
         fs.writeFileSync(LOG_FILE_PATH, '[]');
     }
-
     if (fs.existsSync(path.join('./', 'watchedFiles.json'))) {
         try {
             const json = JSON.parse(fs.readFileSync(path.join('./', 'watchedFiles.json')).toString());
             if (json.catchList)
                 warnedImages = json.catchList;
         } catch (e) {
-            customLogger('error', "Error Reading Catch List: ", e.message)
+            dualLog('LogView', "Error Reading Catch List: " + e.message, 'error')
         }
     }
-
     app.use(express.static(path.join('./utils/models/')));
 
     async function loadDatabaseCache() {
@@ -358,22 +360,21 @@
         const usedMemory = totalMemory - freeMemory;
         const usedMemoryPercentage = (usedMemory / totalMemory) * 100;
 
-        customLogger('log', `Total Memory: ${(totalMemory / (1024 * 1024)).toFixed(2)} MB`);
-        customLogger('log', `Used Memory: ${(usedMemory / (1024 * 1024)).toFixed(2)} MB`);
-        customLogger('log', `Used Memory Percentage: ${usedMemoryPercentage.toFixed(2)}%`);
+        dualLog('MemoryUsage', `Total Memory: ${(totalMemory / (1024 * 1024)).toFixed(2)} MB`, 'info');
+        dualLog('MemoryUsage', `Used Memory: ${(usedMemory / (1024 * 1024)).toFixed(2)} MB`, 'info');
+        dualLog('MemoryUsage', `Used Memory Percentage: ${usedMemoryPercentage.toFixed(2)}%`, 'info');
 
         if (usedMemoryPercentage > 95 && systemglobal.reset_on_overload) {
-            customLogger('error', "Memory overflow prevention");
-            process.exit(1);
+            dualLog('MemoryUsage', "Memory overflow prevention", 'emergency');
         }
     }
 
     const mqClient = require('./utils/mqAccess')(facilityName, systemglobal);
 
-    customLogger('log', "Reading tags from database...");
+    dualLog('Init', "Reading tags from database...", 'debug');
     let exsitingTags = new Map();
     (await sqlPromiseSafe(`SELECT id, name FROM sequenzia_index_tags`)).rows.map(e => exsitingTags.set(e.name, e.id));
-    customLogger('log', "Reading tags from model...");
+    dualLog('Init', "Reading tags from model...", 'debug');
     let modelTags = new Map();
     const _modelTags = (fs.readFileSync(path.join(systemglobal.deepbooru_model_path, './tags.txt'))).toString().trim().split('\n').map(line => line.trim());
     const _modelCategories = JSON.parse(fs.readFileSync(path.join(systemglobal.deepbooru_model_path, './categories.json')).toString());
@@ -394,7 +395,7 @@
             modelTags.set(t, c)
         })
     })
-    customLogger('log', `Loaded ${modelTags.size} tags from model`);
+    dualLog('Init', `Loaded ${modelTags.size} tags from model`, 'debug');
     const activeFiles = new Map();
     let init = false;
 
@@ -478,16 +479,16 @@
                             const rs = await parseResultsForQuery(message[0].channel, tagResults)
                             if (!rs.approval) {
                                 extra += ', hidden = 1'
-                                customLogger('log', `Entity ${eid} will be hidden!`);
+                                dualLog('WatchResults', `Entity ${eid} will be hidden!`, 'alert');
                             } else {
-                                customLogger('log', `Entity ${eid} was approved!`);
+                                dualLog('WatchResults', `Entity ${eid} was approved!`, 'info');
                             }
                             if (rs.folder)
                                 extra += `, fid = ${rs.folder}`
                         }
                         let tagString = (Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ') + '; ');
                         let safety = null;
-                        customLogger('log', `Entity ${eid} has ${Object.keys(tagResults).length} tags!`);
+                        dualLog('WatchResults', `Entity ${eid} has ${Object.keys(tagResults).length} tags!`, 'debug');
                         await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ?, safety = ?${extra} WHERE eid = ?`, [tagString, safety, eid])
                         Object.keys(tagResults).map(async k => {
                             const r = tagResults[k];
@@ -512,12 +513,12 @@
                             .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                         const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
                         const approved = await parseResultsForMessage(key, tagResults);
-                        customLogger('log', `Message ${key} has ${Object.keys(tagResults).length} tags!`);
+                        dualLog('WatchResults', `Message ${key} has ${Object.keys(tagResults).length} tags!`, 'info');
                         if (approved) {
                             mqClient.sendData(`${approved.destination}`, approved.message, function (ok) { });
-                            customLogger('log', `Message ${key} was approved!`, 'green');
+                            dualLog('WatchResults', `Message ${key} was approved!`, 'info');
                         } else {
-                            customLogger('error', `Message ${key} was denied! Will not be delivered!`, 'red');
+                            dualLog('WatchResults', `Message ${key} was denied! Will not be delivered!`, 'alert');
                         }
                         try {
                             fs.unlinkSync(jsonFilePath);
@@ -529,7 +530,7 @@
                         await LocalQueue.removeItem(key);
                     } else if ((filePath.split('/').pop().split('\\').pop().endsWith('.jpg') || filePath.split('/').pop().split('\\').pop().endsWith('.png')) && filePath.split('/').pop().split('\\').pop().startsWith('upscale-')) {
                         const key = path.basename(filePath).split('upscale-').pop().split('.')[0];
-                        customLogger('error', `Message ${key} has been upscaled!`);
+                        dualLog('WatchResults', `Message ${key} has been upscaled!`, 'info');
 
                         mqClient.sendData(`${approved.destination}`, approved.message, function (ok) {
                         });
@@ -550,10 +551,10 @@
                     }
                 })
                 .on('error', function (error) {
-                    customLogger('error', error);
+                    dualLog('WatchResults', error.message, 'error');
                 })
                 .on('ready', function () {
-                    customLogger('log', "MIITS Results Watcher Ready!")
+                    dualLog('WatchResults', "MIITS Results Watcher Ready!", 'info');
                 });
         }
     }
@@ -561,13 +562,13 @@
     if (systemglobal.Watchdog_Host && systemglobal.Watchdog_ID && !systemglobal.Cluster_ID) {
         request.get(`http://${systemglobal.Watchdog_Host}/watchdog/init?id=${systemglobal.Watchdog_ID}&entity=${facilityName}-${systemglobal.system_name}`, async (err, res) => {
             if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
-                customLogger('error', `Failed to init watchdog server ${systemglobal.Watchdog_Host} as ${facilityName}:${systemglobal.Watchdog_ID}`);
+                dualLog('ClusterManager', `Failed to init watchdog server ${systemglobal.Watchdog_Host} as ${facilityName}:${systemglobal.Watchdog_ID}`, 'error');
             }
         })
         setInterval(() => {
             request.get(`http://${systemglobal.Watchdog_Host}/watchdog/ping?id=${systemglobal.Watchdog_ID}&entity=${facilityName}-${systemglobal.system_name}`, async (err, res) => {
                 if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
-                    customLogger('error', `Failed to ping watchdog server ${systemglobal.Watchdog_Host} as ${facilityName}:${systemglobal.Watchdog_ID}`);
+                    dualLog('ClusterManager', `Failed to ping watchdog server ${systemglobal.Watchdog_Host} as ${facilityName}:${systemglobal.Watchdog_ID}`, 'error');
                 }
             })
         }, 60000)
@@ -595,11 +596,11 @@
             }
             request.get(`http://${systemglobal.Watchdog_Host}/cluster/ping?id=${systemglobal.Cluster_ID}&entity=${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.system_name}`, async (err, res, body) => {
                 if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
-                    customLogger('error', `Failed to ping watchdog server ${systemglobal.Watchdog_Host} as ${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.system_name}:${systemglobal.Cluster_ID}`);
+                    dualLog('ClusterManager', `Failed to ping watchdog server ${systemglobal.Watchdog_Host} as ${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.system_name}:${systemglobal.Cluster_ID}`, 'error');
                 } else {
                     const jsonResponse = JSON.parse(Buffer.from(body).toString());
                     if (jsonResponse.error) {
-                        customLogger('error', jsonResponse.error);
+                        dualLog('ClusterManager', jsonResponse.error, 'error');
                     } else {
                         lastClusterCheckin = (new Date().getTime())
                         if (!jsonResponse.active) {
@@ -635,13 +636,12 @@
             const isBootable = await new Promise(ok => {
                 request.get(`http://${systemglobal.Watchdog_Host}/cluster/init?id=${systemglobal.Cluster_ID}&entity=${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.system_name}`, async (err, res, body) => {
                     if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
-                        customLogger('error', `Failed to init watchdog server ${systemglobal.Watchdog_Host} as ${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.system_name}:${systemglobal.Cluster_ID}`);
+                        dualLog('ClusterManager', `Failed to init watchdog server ${systemglobal.Watchdog_Host} as ${(systemglobal.Cluster_Entity) ? systemglobal.Cluster_Entity : facilityName + "-" + systemglobal.system_name}:${systemglobal.Cluster_ID}`, 'error');
                         ok(systemglobal.Cluster_Global_Master || false);
                     } else {
                         const jsonResponse = JSON.parse(Buffer.from(body).toString());
-                        customLogger('log', jsonResponse);
+                        dualLog('ClusterManager', JSON.stringify(jsonResponse), 'debug');
                         if (jsonResponse.error) {
-                            customLogger('error', jsonResponse.error);
                             ok(false);
                         } else {
                             if (!jsonResponse.active) {
@@ -673,7 +673,7 @@
                         if (activeNode) {
                             request.get(`http://${systemglobal.Watchdog_Host}/cluster/force/search?id=${systemglobal.Cluster_ID}`, async (err, res) => {
                                 if (!err && res && res.statusCode && res.statusCode < 400) {
-                                    customLogger('log', "Entering Search Mode...")
+                                    dualLog('ClusterManager', "Entering Search Mode...", 'alert');
                                 }
                             })
                         }
@@ -700,7 +700,7 @@
                     if (systemglobal.rules)
                         systemglobal.rules.map(async rule => { rule.channels.map(ch => { ruleSets.set(ch, rule) }) })
 
-                    customLogger('log', ruleSets.size + ' configured rules')
+                    dualLog('RuleManager', ruleSets.size + ' configured rules', 'log');
 
                     function startWorker() {
                         amqpConn.createChannel(function(err, ch) {
@@ -899,7 +899,7 @@
                                                             cb(true)
                                                         } catch (err) {
                                                             Logger.printLine("MPFDownload", `File ${cacheresponse[0].real_filename} failed to rebuild!`, "err", err)
-                                                            customLogger('error', err)
+                                                            dualLog('Upscale', `${err.message}`, 'error');
                                                             for (let part of itemsCompleted) {
                                                                 fs.unlink(part, function (err) {
                                                                     if (err && (err.code === 'EBUSY' || err.code === 'ENOENT')) {
@@ -964,7 +964,7 @@
                                         break;
                                 }
                             } else if (msg.messageType === 'sfile' && msg.itemFileData && msg.itemFileName && ['jpg', 'jpeg', 'jfif', 'png'].indexOf(msg.itemFileName.split('.').pop().toLowerCase()) !== -1) {
-                                Logger.printLine(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info");
+                                dualLog(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info");
                                 LocalQueue.setItem(fileId, { id: fileId, queue, message: msg })
                                     .then(async function () {
                                         let image = sharp(new Buffer.from(msg.itemFileData, 'base64'));
@@ -981,15 +981,15 @@
                                                 smallest = metadata.width;
                                             }
                                             if (rules && metadata && rules.require && rules.require.max_res && rules.require.max_res <= largest) {
-                                                customLogger('error', `Blocked because image to large: ${largest} > ${rules.require.max_res} `);
+                                                dualLog('MessageParser', `Blocked because image to large: ${largest} > ${rules.require.max_res}`, 'info');
                                                 return false;
                                             }
                                             if (rules && metadata && rules.require && rules.require.min_res && rules.require.min_res > smallest) {
-                                                customLogger('error', `Blocked because image to small: ${smallest} < ${rules.require.min_res}"`);
+                                                dualLog('MessageParser', `Blocked because image to small: ${smallest} < ${rules.require.min_res}`, 'info');
                                                 return false;
                                             }
                                             if (rules && metadata && rules.require && rules.require.not_aspect_ratio && rules.require.not_aspect_ratio.indexOf(toFixed((metadata.height / metadata.width), 5).toString()) !== -1) {
-                                                customLogger('error', `Blocked because aspect ratio: ${toFixed((metadata.height / metadata.width), 5).toString()}R"`);
+                                                dualLog('MessageParser', `Blocked because aspect ratio: ${toFixed((metadata.height / metadata.width), 5).toString()}R`, 'info');
                                                 return false;
                                             }
                                             return true;
@@ -1000,8 +1000,7 @@
                                                 .withMetadata()
                                                 .toFile(path.join(systemglobal.holding_path || systemglobal.deepbooru_input_path, `message-${fileId}.png`), (err, info) => {
                                                     if (err) {
-                                                        Logger.printLine("SaveFile", `Error when saving the file ${fileId}`, "error")
-                                                        customLogger('error', err);
+                                                        dualLog('MessageProcessor', `Error when saving the file ${fileId}: ${err.message}`, 'error');
                                                         mqClient.sendData(`${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
                                                             cb(ok);
                                                         });
@@ -1021,8 +1020,7 @@
                                         image = null;
                                     })
                                     .catch(function (err) {
-                                        customLogger('log', err);
-                                        Logger.printLine(`MessageProcessor`, `Failed to save message`, `error`, err)
+                                        Logger.printLine(`MessageProcessor`, `Failed to save message: ${err.message}`, `error`, err)
                                         mqClient.sendData( `${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
                                             cb(ok);
                                         });
@@ -1062,8 +1060,7 @@
                     }
                     function closeOnErr(err) {
                         if (!err) return false;
-                        customLogger('error', err)
-                        Logger.printLine("KanmiMQ", "Connection Closed due to error", "error", err)
+                        Logger.printLine("KanmiMQ", `Connection Closed due to error: ${err.message}`, "error", err)
                         amqpConn.close();
                         return true;
                     }
@@ -1082,7 +1079,7 @@
                     start();
                     if (systemglobal.search)
                         await parseUntilDone(systemglobal.search);
-                    customLogger('log', "First pass completed!")
+                    dualLog('Init', "First pass completed!", 'info');
                 } else {
                     shutdownComplete = true;
                     watchResults();
@@ -1099,7 +1096,7 @@
                         setInterval(() => {
                             request.get(`http://${systemglobal.fan_reset_url}`, async (err, res, body) => {
                                 if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
-                                    customLogger('error', err || res.body);
+                                    dualLog('HardwareManager', `${err.message}`, 'error');
                                 }
                             })
                         }, 60000)
@@ -1141,9 +1138,9 @@
         })
         server.listen(9052, '0.0.0.0',async function (err) {
             if (err) {
-                customLogger('log', 'App listening error ', err);
+                dualLog('API', `App listening error: ${err.message}`, 'error');
             } else {
-                customLogger('log', 'App running at 9052')
+                dualLog('API', 'App running at 9052', 'log');
             }
         });
     }
@@ -1177,7 +1174,7 @@
             if (activeNode) {
                 request.get(`http://${systemglobal.Watchdog_Host}/cluster/force/search?id=${systemglobal.Cluster_ID}`, async (err, res) => {
                     if (!err && res && res.statusCode && res.statusCode < 400) {
-                        customLogger('log', "Entering Search Mode...")
+                        dualLog('ClusterManager', "Entering Search Mode...", 'critical');
                     }
                 })
             }
@@ -1204,7 +1201,7 @@
         if (systemglobal.rules)
             systemglobal.rules.map(async rule => { rule.channels.map(ch => { ruleSets.set(ch, rule) }) })
 
-        customLogger('log', ruleSets.size + ' configured rules')
+        dualLog('RuleManager', ruleSets.size + ' configured rules', 'log');
 
         function startWorker() {
             amqpConn.createChannel(function(err, ch) {
@@ -1403,7 +1400,6 @@
                                                 cb(true)
                                             } catch (err) {
                                                 Logger.printLine("MPFDownload", `File ${cacheresponse[0].real_filename} failed to rebuild!`, "err", err)
-                                                customLogger('error', err)
                                                 for (let part of itemsCompleted) {
                                                     fs.unlink(part, function (err) {
                                                         if (err && (err.code === 'EBUSY' || err.code === 'ENOENT')) {
@@ -1485,15 +1481,15 @@
                                     smallest = metadata.width;
                                 }
                                 if (rules && metadata && rules.require && rules.require.max_res && rules.require.max_res <= largest) {
-                                    customLogger('error', `Blocked because image to large: ${largest} > ${rules.require.max_res} `);
+                                    dualLog('MessageProcessor', `Blocked because image to large: ${largest} > ${rules.require.max_res} `, 'info');
                                     return false;
                                 }
-                                if (rules && metadata && rules.require && rules.require.min_res && rules.require.min_res > smallest) {
-                                    customLogger('error', `Blocked because image to small: ${smallest} < ${rules.require.min_res}"`);
+                                if (rules && metadata && rules.require && rules.require.min_res && rules.require.min_res > smallest) {;
+                                    dualLog('MessageProcessor', `Blocked because image to small: ${smallest} < ${rules.require.min_res}`, 'info');
                                     return false;
                                 }
                                 if (rules && metadata && rules.require && rules.require.not_aspect_ratio && rules.require.not_aspect_ratio.indexOf(toFixed((metadata.height / metadata.width), 5).toString()) !== -1) {
-                                    customLogger('error', `Blocked because aspect ratio: ${toFixed((metadata.height / metadata.width), 5).toString()}R"`);
+                                    dualLog('MessageProcessor', `Blocked because aspect ratio: ${toFixed((metadata.height / metadata.width), 5).toString()}R`, 'info');
                                     return false;
                                 }
                                 return true;
@@ -1504,8 +1500,7 @@
                                     .withMetadata()
                                     .toFile(path.join(systemglobal.holding_path || systemglobal.deepbooru_input_path, `message-${fileId}.png`), (err, info) => {
                                         if (err) {
-                                            Logger.printLine("SaveFile", `Error when saving the file ${fileId}`, "error")
-                                            customLogger('error', err);
+                                            Logger.printLine("SaveFile", `Error when saving the file ${fileId}: ${err.message}`, "error")
                                             mqClient.sendData(`${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
                                                 cb(ok);
                                             });
@@ -1525,8 +1520,7 @@
                             image = null;
                         })
                         .catch(function (err) {
-                            customLogger('log', err);
-                            Logger.printLine(`MessageProcessor`, `Failed to save message`, `error`, err)
+                            Logger.printLine(`MessageProcessor`, `Failed to save message: ${err.message}`, `error`, err)
                             mqClient.sendData( `${systemglobal.mq_discord_out}${(queue !== 'normal') ? '.' + queue : ''}`, msg, function (ok) {
                                 cb(ok);
                             });
@@ -1566,7 +1560,6 @@
         }
         function closeOnErr(err) {
             if (!err) return false;
-            customLogger('error', err)
             Logger.printLine("KanmiMQ", "Connection Closed due to error", "error", err)
             amqpConn.close();
             return true;
@@ -1585,12 +1578,12 @@
         start();
         if (systemglobal.search)
             await parseUntilDone(systemglobal.search);
-        customLogger('log', "First pass completed!")
+        dualLog('Init', "First pass completed!", 'info');
     } else {
         await processGPUWorkloads();
         if (systemglobal.search)
             await parseUntilDone(systemglobal.search);
-        customLogger('log', "First pass completed!")
+        dualLog('Init', "First pass completed!", 'info');
     }
 
     async function clearFolder(folderPath) {
@@ -1598,10 +1591,10 @@
             const files = await fs.promises.readdir(folderPath);
             for (const file of files) {
                 await fs.promises.unlink(path.resolve(folderPath, file));
-                customLogger('log', `${folderPath}/${file} has been removed successfully`);
+                dualLog('ClearFolder', `${folderPath}/${file} has been removed successfully`, 'info');
             }
         } catch (err){
-            customLogger('log', err);
+            dualLog('CleanFolder', `${err.message}`, 'error');
         }
     }
     // On-The-Fly Tagging System (aka no wasted table space)
@@ -1637,7 +1630,7 @@
     async function upscaleImages() {
         if (!upscaleIsActive) {
             upscaleIsActive = true;
-            customLogger('log', 'Processing image upscale via MIITS Client...')
+            dualLog('UpscaleImages', 'Processing image upscale via MIITS Client...', 'info');
             return new Promise(async (resolve) => {
                 const startTime = Date.now();
                 (fs.readdirSync(systemglobal.waifu2x_input_path))
@@ -1664,33 +1657,33 @@
                                                 systemglobal.waifu2x_exec_format_options[data.parameters.image_format || 0],
                                                 ...(systemglobal.waifu2x_exec_additional_options || [])
                                             ]
-                                            customLogger('log', w2xOptions.join(' '))
+                                            dualLog('UpscaleImages', w2xOptions.join(' '), 'info');
                                             const muginoMeltdown = spawn(((systemglobal.waifu2x_exec) ? systemglobal.waifu2x_exec : 'waifu2x'), w2xOptions, {encoding: 'utf8'})
                                             if (!systemglobal.waifu2x_no_log)
-                                                muginoMeltdown.stdout.on('data', (data) => customLogger('log', data.toString().trim().split('\n').filter(e => e.trim().length > 1 && !e.trim().includes('===] ')).join('\n')))
-                                            muginoMeltdown.stderr.on('data', (data) => customLogger('error', data.toString()));
+                                                muginoMeltdown.stdout.on('data', (data) => dualLog('UpscaleImages', data.toString().trim().split('\n').filter(e => e.trim().length > 1 && !e.trim().includes('===] ')).join('\n'), 'info'))
+                                            muginoMeltdown.stderr.on('data', (data) => dualLog('UpscaleImages', data.toString(), 'error'));
                                             muginoMeltdown.on('close', (code, signal) => {
                                                 (fs.readdirSync(systemglobal.waifu2x_input_path))
                                                     .filter(e => fs.existsSync(path.join(systemglobal.deepbooru_output_path, `${e.split('.')[0]}.jpg`)) || fs.existsSync(path.join(systemglobal.deepbooru_output_path, `${e.split('.')[0]}.png`)))
                                                     .map(e => fs.unlinkSync(path.resolve(systemglobal.waifu2x_input_path, e)))
                                                 if (code !== 0) {
-                                                    customLogger('error', `Mugino Meltdown! MIITS Upscaler reported a error during upscale operation!`);
+                                                    dualLog('UpscaleImages', `Mugino Meltdown! MIITS Upscaler reported a error during upscale operation!`, 'error');
                                                     upscaleIsActive = false;
                                                     resolve(false)
                                                 } else {
-                                                    customLogger('log', `Tagging Completed in ${((Date.now() - startTime) / 1000).toFixed(0)} sec!`);
+                                                    dualLog('UpscaleImages', `Upscaler Completed in ${((Date.now() - startTime) / 1000).toFixed(0)} sec!`, 'info');
                                                     upscaleIsActive = false;
                                                     resolve(true)
                                                 }
                                             })
                                         } else {
-                                            customLogger('error', `Unexpectedly Failed to get message data for key ${key}`)
+                                            dualLog('UpscaleImages',`Unexpectedly Failed to get message data for key ${key}`, 'error');
                                             upscaleIsActive = false;
                                             resolve(true);
                                         }
                                     })
                                     .catch(err => {
-                                        customLogger('error', `Unexpectedly Failed to get message for key ${key}`, err)
+                                        dualLog('UpscaleImages', `Unexpectedly Failed to get message for key ${key}: ${err.message}`, 'error');
                                         upscaleIsActive = false;
                                         resolve(true);
                                     })
@@ -1713,7 +1706,7 @@
     async function queryImageTags() {
         if (!mittsIsActive) {
             mittsIsActive = true;
-            customLogger('log', 'Processing image tags via MIITS Client...')
+            dualLog('QueryImage', 'Processing image tags via MIITS Client...', 'info');
             const date = Date.now();
             return new Promise(async (resolve) => {
                 const startTime = Date.now();
@@ -1731,30 +1724,30 @@
                     if (systemglobal.fan_up_url) {
                         request.get(`http://${systemglobal.fan_up_url}`, async (err, res, body) => {
                             if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
-                                customLogger('error', err || res.body);
+                                dualLog('HardwareManager', `${err.message}`, 'error');
                             }
                         })
                     }
                     let ddOptions = ['evaluate', systemglobal.deepbooru_input_path, '--project-path', systemglobal.deepbooru_model_path, '--allow-folder', '--save-json', '--save-path', systemglobal.deepbooru_output_path, '--no-tag-output']
                     if (systemglobal.deepbooru_gpu)
                         ddOptions.push('--allow-gpu')
-                    customLogger('log', ddOptions.join(' '))
+                    dualLog('QueryImage', ddOptions.join(' '), 'debug');
                     const muginoMeltdown = spawn(((systemglobal.deepbooru_exec) ? systemglobal.deepbooru_exec : 'deepbooru'), ddOptions, {encoding: 'utf8'})
 
                     if (!systemglobal.deepbooru_no_log)
-                        muginoMeltdown.stdout.on('data', (data) => customLogger('log', data.toString().trim().split('\n').filter(e => e.trim().length > 1 && !e.trim().includes('===] ')).join('\n')))
-                    muginoMeltdown.stderr.on('data', (data) => customLogger('error', data.toString()));
+                        muginoMeltdown.stdout.on('data', (data) => dualLog('QueryImage', data.toString().trim().split('\n').filter(e => e.trim().length > 1 && !e.trim().includes('===] ')).join('\n'), 'info'))
+                    muginoMeltdown.stderr.on('data', (data) => dualLog('QueryImage',data.toString(), 'error'));
                     muginoMeltdown.on('close', (code, signal) => {
                         /*(fs.readdirSync(systemglobal.deepbooru_input_path))
                             .filter(e => fs.existsSync(path.join(systemglobal.deepbooru_output_path, `${e.split('.')[0]}.json`)))
                             .map(e => fs.unlinkSync(path.resolve(systemglobal.deepbooru_input_path, e)))*/
                         if (code !== 0) {
-                            customLogger('error', `Mugino Meltdown! MIITS reported a error during tagging operation!`);
+                            dualLog('QueryImage', `Mugino Meltdown! MIITS reported a error during tagging operation!`, 'error');
                             mittsIsActive = false;
                             totalItems += 1
                             resolve(false)
                         } else {
-                            customLogger('log', `Tagging Completed in ${((Date.now() - startTime) / 1000).toFixed(0)} sec!`);
+                            dualLog('QueryImage', `Tagging Completed in ${((Date.now() - startTime) / 1000).toFixed(0)} sec!`, 'info');
                             mittsIsActive = false;
                             resolve(true)
                         }
@@ -1762,7 +1755,7 @@
                             setInterval(() => {
                                 request.get(`http://${systemglobal.fan_reset_url}`, async (err, res, body) => {
                                     if (err || res && res.statusCode !== undefined && res.statusCode !== 200) {
-                                        customLogger('error', err || res.body);
+                                        dualLog('HardwareManager', `${err.message}`, 'error');
                                     }
                                 })
                             }, 60000)
@@ -1840,7 +1833,7 @@
 
         const sqlOrderBy = (analyzerGroup && analyzerGroup.order) ? analyzerGroup.order :'eid DESC'
         const query = `SELECT x.*, y.host, y.path_hint, y.preview_hint, y.full_hint, y.mfull_hint FROM (SELECT ${sqlFields.join(', ')} FROM ${sqlTables.join(', ')} WHERE (${sqlWhereBase.join(' AND ')} AND (${sqlWhereFiletypes.join(' OR ')}))${(sqlWhereFilter.length > 0) ? ' AND (' + sqlWhereFilter.join(' AND ') + ')' : ''} ORDER BY ${sqlOrderBy} LIMIT ${(analyzerGroup && analyzerGroup.limit) ? analyzerGroup.limit : 100}) x LEFT JOIN (SELECT eid, host, path_hint, preview_hint, full_hint, mfull_hint FROM kanmi_records_cdn WHERE host = ${systemglobal.cdn_id} AND (preview_hint IS NOT NULL OR full_hint IS NOT NULL OR mfull_hint IS NOT NULL)) y ON (x.eid = y.eid)`
-        customLogger('log', `Selecting data for analyzer group...`, analyzerGroup);
+        dualLog('QueryTags', `Selecting data for analyzer group...`, 'info');
 
         const messages = (await sqlPromiseSafe(query, true)).rows.map(e => {
             let url
@@ -1853,11 +1846,11 @@
             } else if (e.attachment_auth && e.attachment_auth_valid === 1) {
                 url = `https://cdn.discordapp.com/attachments/` + ((e.attachment_hash.includes('/')) ? e.attachment_hash : `${e.channel}/${e.attachment_hash}/${e.attachment_name.split('?')[0]}`) + `?${e.attachment_auth}`;
             } else {
-                customLogger('log', 'Did not get any valid data to make a URL', e)
+                dualLog('QueryTags', 'Did not get any valid data to make a URL', 'error', e);
             }
             return { url, ...e };
         })
-        customLogger('log', messages.length + ' items need to be tagged!')
+        dualLog('QueryTags', messages.length + ' items need to be tagged!', 'info');
         let downlaods = {}
         const existingFiles = [
             ...new Set([
@@ -1871,7 +1864,7 @@
             return true;
         while (Object.keys(downlaods).length !== 0) {
             let downloadKeys = Object.keys(downlaods).slice(0,systemglobal.parallel_downloads || 25)
-            customLogger('log', `${Object.keys(downlaods).length} Left to download`)
+            dualLog('QueryTags', `${Object.keys(downlaods).length} Left to download`, 'info');
             await Promise.all(downloadKeys.map(async k => {
                 const e = downlaods[k];
                 const results = await new Promise(ok => {
@@ -1894,8 +1887,7 @@
                         },
                     }, async function (err, res, body) {
                         if (err) {
-                            customLogger('error', `Download failed: ${url}`, err);
-                            customLogger('error', e);
+                            dualLog('QueryTags', `Download failed: ${url}: ${err.message}`, 'error');
                             ok(false)
                         } else {
                             try {
@@ -1903,7 +1895,7 @@
                                     const mime = await new Promise(ext => {
                                         fileType.fromBuffer(body,function(err, result) {
                                             if (err) {
-                                                customLogger('error', `Failed to get MIME type for ${e.eid}`, err);
+                                                dualLog('QueryTags', `Failed to get MIME type for ${e.eid}`, 'error');
                                                 ext(null);
                                             } else {
                                                 ext(result);
@@ -1918,7 +1910,7 @@
                                             .toFormat('png')
                                             .toFile(path.join(systemglobal.holding_path || systemglobal.deepbooru_input_path, `query-${e.eid}.png`), (err, info) => {
                                                 if (err) {
-                                                    customLogger('error', `Failed to convert ${e.eid} to PNG file`, err);
+                                                    dualLog('QueryTags', `Failed to convert ${e.eid} to PNG file`, 'error');
                                                     ok(false);
                                                 } else {
                                                     //customLogger('log', `Downloaded as PNG ${e.url}`)
@@ -1926,11 +1918,11 @@
                                                 }
                                             })
                                     } else {
-                                        customLogger('error', 'Unsupported file, will be discarded! Please consider correcting file name');
+                                        dualLog('QueryTags', 'Unsupported file, will be discarded! Please consider correcting file name', 'error');
                                         ok(false);
                                     }
                                 } else {
-                                    customLogger('error', `Download failed, File size to small: ${url}`);
+                                    dualLog('QueryTags', `Download failed, File size to small: ${url}`, 'error');
                                     const eidData = (await sqlPromiseSafe(`SELECT * FROM kanmi_records WHERE id = ?`, [e.id])).rows
                                     if (eidData.length > 0) {
                                         mqClient.cdnRequest({
@@ -1944,8 +1936,7 @@
                                     ok(false);
                                 }
                             } catch (err) {
-                                customLogger('error', `Unexpected Error processing ${e.eid}!`, err);
-                                customLogger('error', e)
+                                dualLog('QueryTags', `Unexpected Error processing ${e.eid}!: ${err.message}`, 'error');
                                 ok(false);
                             }
                         }
@@ -1960,7 +1951,7 @@
                             activeFiles.set(e.eid, prev);
                         } else {
                             await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ? WHERE eid = ?`, [ '3/1/cant_tag; ', e.eid ]);
-                            customLogger('error', `Failed to get data for ${e.eid} multiple times, it will be permanently skipped!`)
+                            dualLog('QueryTags', `Failed to get data for ${e.eid} multiple times, it will be permanently skipped!`, 'alert');
                         }
                     } else {
                         activeFiles.set(e.eid, 0);
@@ -2011,7 +2002,7 @@
                                             }
                                         });
                                     })) {
-                                        customLogger('error', `Found blocked tags "${tags.filter(t => rules.block.some(rule => {
+                                        dualLog('CheckApproval', `Found blocked tags "${tags.filter(t => rules.block.some(rule => {
                                             if (rule.startsWith('s:')) {
                                                 return t.startsWith(rule.slice(2));
                                             } else if (rule.startsWith('e:')) {
@@ -2019,19 +2010,19 @@
                                             } else {
                                                 return rule === t;
                                             }
-                                        })).join(' ')}"`);
+                                        })).join(' ')}"`, 'alert');
                                         return false;
                                     }
                                     if (rules && rules.block_pairs && rules.block_pairs.map(ph => ph.map(p => tags.filter(t => (p.indexOf(t) !== -1)).length).filter(g => !g).length).filter(h => h === 0).length > 0) {
-                                        customLogger('error', `Found a blocked pair of tags "${rules.block_pairs.join(' + ')}"`)
+                                        dualLog('CheckApproval', `Found a blocked pair of tags "${rules.block_pairs.join(' + ')}"`, 'alert');
                                         return false;
                                     }
                                     if (rules && rules.min_count && tags.length < rules.min_count) {
-                                        customLogger('error', `Did not find enough tags (${tags.length})`)
+                                        dualLog('CheckApproval', `Did not find enough tags (${tags.length})`, 'alert');
                                         return false;
                                     }
                                     if (rules && rules.max_count && tags.length >= rules.max_count) {
-                                        customLogger('error', `Returned to many tags (${tags.length}): Possible tag flood`)
+                                        dualLog('CheckApproval', `Returned to many tags (${tags.length}): Possible tag flood`, 'alert');
                                         return false;
                                     }
                                     if (rules && rules.accept && tags.filter(t => {
@@ -2048,7 +2039,7 @@
                                             }
                                         });
                                     }).length === 0) {
-                                        customLogger('error', `Did not find approved tags "${tags}"`);
+                                        dualLog('CheckApproval', `Did not find approved tags "${tags}"`, 'alert');
                                         return false;
                                     }
                                     return true;
@@ -2068,7 +2059,7 @@
                                             if (folderRule.accept && tags.some(t => {
                                                 return folderRule.accept.some(rule => tagMatchesRule(t, rule));
                                             })) {
-                                                customLogger('error', `Found tag match for folder ${folderRule.destination}`);
+                                                dualLog('CheckApproval', `Found tag match for folder ${folderRule.destination}`, 'alert');
                                                 return folderRule.destination;
                                             }
 
@@ -2076,13 +2067,13 @@
                                             if (folderRule.accept_pairs && folderRule.accept_pairs.some(pair => {
                                                 return pair.every(p => tags.some(t => tagMatchesRule(t, p)));
                                             })) {
-                                                customLogger('error', `Found tag pair match for folder ${folderRule.destination}`);
+                                                dualLog('CheckApproval', `Found tag pair match for folder ${folderRule.destination}`, 'alert');
                                                 return folderRule.destination;
                                             }
 
                                             // Check for matching accepted tag pairs
                                             if (folderRule.text && data.message.messageText && folderRule.text.some(txt => data.message.messageText.toLowerCase().includes(txt.toLowerCase()))) {
-                                                customLogger('error', `Found text string match for folder ${folderRule.destination}`);
+                                                dualLog('CheckApproval', `Found text string match for folder ${folderRule.destination}`, 'alert');
                                                 return folderRule.destination;
                                             }
                                         }
@@ -2090,7 +2081,7 @@
                                     return undefined; // No matches found, return false
                                 })();
                                 if (folderMatch)
-                                    customLogger('log', 'Adding to folder: ' + folderMatch, 'cyan');
+                                    dualLog('CheckApproval', 'Adding to folder: ' + folderMatch, 'info');
 
                                 const channelMatch = (() => {
                                     if (rules && Array.isArray(rules.channel_match)) {
@@ -2107,7 +2098,7 @@
                                             if (channelRule.accept && tags.some(t => {
                                                 return channelRule.accept.some(rule => tagMatchesRule(t, rule));
                                             })) {
-                                                customLogger('error', `Found tag match for folder ${folderRule.destination}`);
+                                                dualLog('CheckApproval', `Found tag match for folder ${folderRule.destination}`, 'alert');
                                                 return channelRule.destination;
                                             }
 
@@ -2115,13 +2106,13 @@
                                             if (channelRule.accept_pairs && channelRule.accept_pairs.some(pair => {
                                                 return pair.every(p => tags.some(t => tagMatchesRule(t, p)));
                                             })) {
-                                                customLogger('error', `Found tag pair match for folder ${channelRule.destination}`);
+                                                dualLog('CheckApproval', `Found tag pair match for folder ${channelRule.destination}`, 'alert');
                                                 return channelRule.destination;
                                             }
 
                                             // Check for matching accepted tag pairs
                                             if (channelRule.text && data.message.messageText && channelRule.text.some(txt => data.message.messageText.toLowerCase().includes(txt.toLowerCase()))) {
-                                                customLogger('error', `Found text string match for folder ${channelRule.destination}`);
+                                                dualLog('CheckApproval', `Found text string match for folder ${channelRule.destination}`, 'alert');
                                                 return channelRule.destination;
                                             }
                                         }
@@ -2129,7 +2120,7 @@
                                     return undefined; // No matches found, return false
                                 })();
                                 if (channelMatch)
-                                    customLogger('log', 'Redirecting to channel: ' + channelMatch, 'cyan');
+                                    dualLog('CheckApproval', 'Redirecting to channel: ' + channelMatch, 'alert');
 
                                 let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
                                 if (result) {
@@ -2146,7 +2137,7 @@
                                     ok(false)
                                 }
                             } else if (bypass) {
-                                customLogger('error', `Bypassing ${key}, No tags provided`);
+                                dualLog('CheckApproval', `Bypassing ${key}, No tags data provided`, 'warn');
                                 ok({
                                     destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
                                     message: {
@@ -2159,12 +2150,12 @@
                             }
 
                         } else {
-                            customLogger('error', `Unexpectedly Failed to get message data for key ${key}`)
+                            dualLog('CheckApproval', `Unexpectedly Failed to get message data for key ${key}`, 'error');
                             ok(false);
                         }
                     })
                     .catch(err => {
-                        customLogger('error', `Unexpectedly Failed to get message for key ${key}`, err)
+                        dualLog('CheckApproval', `Unexpectedly Failed to get message for key ${key}`, 'error');
                         ok(false);
                     })
             })
@@ -2201,7 +2192,7 @@
                                 }
                             });
                         })) {
-                            customLogger('error', `Found blocked tags "${tags.filter(t => rules.block.some(rule => {
+                            dualLog('CheckApproval', `Found blocked tags "${tags.filter(t => rules.block.some(rule => {
                                 if (rule.startsWith('s:')) {
                                     return t.startsWith(rule.slice(2));
                                 } else if (rule.startsWith('e:')) {
@@ -2209,19 +2200,19 @@
                                 } else {
                                     return rule === t;
                                 }
-                            })).join(' ')}"`);
+                            })).join(' ')}"`, 'alert');
                             return false;
                         }
                         if (rules && rules.block_pairs && rules.block_pairs.map(ph => ph.map(p => tags.filter(t => (p.indexOf(t) !== -1)).length).filter(g => !g).length).filter(h => h === 0).length > 0) {
-                            customLogger('error', `Found a blocked pair of tags "${rules.block_pairs.join(' + ')}"`)
+                            dualLog('CheckApproval', `Found a blocked pair of tags "${rules.block_pairs.join(' + ')}"`, 'alert');
                             return false;
                         }
                         if (rules && rules.min_count && tags.length < rules.min_count) {
-                            customLogger('error', `Did not find enough tags (${tags.length})`)
+                            dualLog('CheckApproval', `Did not find enough tags (${tags.length})`, 'alert');
                             return false;
                         }
                         if (rules && rules.max_count && tags.length >= rules.max_count) {
-                            customLogger('error', `Returned to many tags (${tags.length}): Possible tag flood`)
+                            dualLog('CheckApproval', `Returned to many tags (${tags.length}): Possible tag flood`, 'alert');
                             return false;
                         }
                         if (rules && rules.accept && tags.filter(t => {
@@ -2238,7 +2229,7 @@
                                 }
                             });
                         }).length === 0) {
-                            customLogger('error', `Did not find approved tags "${tags}"`);
+                            dualLog('CheckApproval', `Did not find approved tags "${tags}"`, 'alert');
                             return false;
                         }
                         return true;
@@ -2258,7 +2249,7 @@
                                 if (folderRule.accept && tags.some(t => {
                                     return folderRule.accept.some(rule => tagMatchesRule(t, rule));
                                 })) {
-                                    customLogger('error', `Found tag match for folder ${folderRule.destination}`);
+                                    dualLog('CheckApproval', `Found tag match for folder ${folderRule.destination}`, 'alert');
                                     return folderRule.destination;
                                 }
 
@@ -2266,7 +2257,7 @@
                                 if (folderRule.accept_pairs && folderRule.accept_pairs.some(pair => {
                                     return pair.every(p => tags.some(t => tagMatchesRule(t, p)));
                                 })) {
-                                    customLogger('error', `Found tag pair match for folder ${folderRule.destination}`);
+                                    dualLog('CheckApproval', `Found tag pair match for folder ${folderRule.destination}`, 'alert');
                                     return folderRule.destination;
                                 }
                             }
@@ -2275,7 +2266,7 @@
                         return undefined; // No matches found, return false
                     })();
                     if (folderMatch)
-                        customLogger('log', 'Adding to folder: ' + folderMatch);
+                        dualLog('CheckApproval', 'Adding to folder: ' + folderMatch, 'alert');
                     ok({
                         approval: result,
                         folder: folderMatch
@@ -2292,17 +2283,17 @@
         };
     }
     async function validateImageInputs() {
-        customLogger('log', "Validating Image Inputs...");
+        dualLog('ValidateImages',"Validating Image Inputs...", 'debug');
 
         // Check if holding_path is set
         if (systemglobal.holding_path) {
             const inputFiles = fs.readdirSync(systemglobal.deepbooru_input_path);
             if (inputFiles.length > 0) {
-                customLogger('log', `${inputFiles.length} files are pending! Skipping loading of images.`);
+                dualLog('ValidateImages', `${inputFiles.length} files are pending! Skipping loading of images.`, 'warn');
             } else {
                 const holdingFiles = fs.readdirSync(systemglobal.holding_path);
                 if (holdingFiles.length > (systemglobal.max_load || 150)) {
-                    customLogger('log', `There are ${holdingFiles.length} files pending. Processing first ${(systemglobal.max_load || 150)} files.`);
+                    dualLog('ValidateImages', `There are ${holdingFiles.length} files pending. Processing first ${(systemglobal.max_load || 150)} files.`, 'info');
                 }
 
                 // Move up to 150 files to the deepbooru_input_path
@@ -2327,7 +2318,7 @@
                 image = null;
             } catch (err) {
                 if (warnedImages[e] !== undefined && warnedImages[e] < totalItems) {
-                    customLogger('error', `Image is invalid: ${e}`, err.message);
+                    dualLog('ValidateImages', `Image is invalid: ${e}`, 'error');
                     try {
                         if (e.includes('message-')) {
                             const key = e.split('message-').pop().split('.')[0];
@@ -2336,11 +2327,11 @@
                         }
                         fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, e));
                     } catch (e) {
-                        customLogger('error', err.message);
+                        dualLog('ValidateImages', `${err.message}`, 'error');
                     }
                 } else {
                     warnedImages[e] = totalItems;
-                    customLogger('log', `Image may be invalid (Marked for catch): ${e}`, err.message);
+                    dualLog('ValidateImages', `Image may be invalid (Marked for catch): ${e}`, 'warn');
                 }
             }
         }
@@ -2362,7 +2353,7 @@
                     }, Promise.resolve());
                     requests.then(async () => {
                         if (noResults !== analyzerGroups.length) {
-                            customLogger('log', 'Search Jobs Completed!, Starting MIITS Tagger...');
+                            dualLog('Parser', 'Search Jobs Completed!, Starting MIITS Tagger...', 'info');
                             if (!gpuLocked && startEvaluating === null) {
                                 clearTimeout(startEvaluating);
                                 startEvaluating = null;
@@ -2372,7 +2363,7 @@
                             while (mittsIsActive) {
                                 await sleep(5000);
                             }
-                            customLogger('log', 'MIITS Tagger finished!');
+                            dualLog('Parser', 'MIITS Tagger finished!', 'info');
                             completed();
                         } else {
                             completed();
@@ -2384,7 +2375,7 @@
                     const _r = await queryForTags();
                     if (_r)
                         noResults++;
-                    customLogger('log', 'Search Jobs Completed!, Starting MIITS Tagger...');
+                    dualLog('Parser', 'Search Jobs Completed!, Starting MIITS Tagger...', 'info');
                 } else {
                     const existingFiles = [
                         ...new Set([
@@ -2395,7 +2386,7 @@
                     ]
                     if (existingFiles.length === 0)
                         noResults++;
-                    customLogger('log', 'Starting MIITS Tagger...');
+                    dualLog('Parser', 'MIITS Tagger finished!', 'info');
                 }
                 clearTimeout(startEvaluating);
                 startEvaluating = null;
@@ -2404,21 +2395,21 @@
                 while (mittsIsActive) {
                     await sleep(5000);
                 }
-                customLogger('log', 'MIITS Tagger finished!');
+                dualLog('Parser', 'MIITS Tagger finished!', 'info');
             }
             if ((analyzerGroups && noResults === analyzerGroups.length) || (!analyzerGroups && noResults === 1))
                 break;
-            customLogger('log', 'More work to be done, waiting for sync...!');
+            dualLog('Parser', 'More work to be done, waiting for sync...!', 'info');
             await new Promise(done => setTimeout(() => {
                 checkMemoryUsage();
                 done(true);
             }, 60000))
         }
-        customLogger('log', 'Waiting for next run... Zzzzz')
+        dualLog('Parser', 'Waiting for next run... Zzzzz', 'debug');
         runTimer = setTimeout(parseUntilDone, 300000);
     }
 
     process.on('uncaughtException', async (err) => {
-        customLogger('log', err);
+        dualLog('uncaughtException', err.message, 'critical');
     })
 })()
