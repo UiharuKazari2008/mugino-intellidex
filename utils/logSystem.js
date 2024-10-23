@@ -86,9 +86,9 @@ function generateLogId() {
     rollingIndex = (rollingIndex + 1) % 10000;
     return `${Date.now()}-${rollingIndex}`;
 }
-if (systemglobal.LogServer) {
+if (systemglobal.log_server) {
     remoteLogger = true
-    connectToWebSocket('ws://' + systemglobal.LogServer);
+    connectToWebSocket('ws://' + systemglobal.log_server);
     sendLog('Init', `Forwarding logs to Othinus Server`, 'debug');
     console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][Init] Forwarding logs to Othinus Server - ${facility}`.gray);
 }
