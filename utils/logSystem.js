@@ -199,6 +199,10 @@ async function printLine(proccess, text, level, object, object2, no_ack = false)
             if (remoteLogger)
                 sendLog(logObject.process, logString, 'info', logObject, undefined, 'red');
             console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgRed)
+        } else if (text.includes(' Message: ')) {
+            if (remoteLogger)
+                sendLog(logObject.process, logString, 'info', logObject, undefined, 'cyan');
+            console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgCyan)
         } else {
             if (remoteLogger)
                 sendLog(logObject.process, logString, 'info', logObject);
