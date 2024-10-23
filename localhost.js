@@ -55,16 +55,6 @@
         const formattedMessage = formatLogMessage(level, message);
         const logEntry = { error: level === 'error', message: formattedMessage, time: timestamp, color };
 
-        // Save to console
-        if (color && color === 'red')
-            console[level](message.white.bgRed);
-        else if (color && color === 'green')
-            console[level](message.green.bgBlack);
-        else if (color && color === 'cyan')
-            console[level](message.cyanBright.bgBlack);
-        else
-            console[level](message);
-
         // Save to file
         const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf-8'));
         logs.push(logEntry);
