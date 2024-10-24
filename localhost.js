@@ -972,8 +972,7 @@
                                 }
                             } else if (msg.messageType === 'sfile' && msg.itemFileData && msg.itemFileName && ['jpg', 'jpeg', 'jfif', 'png'].indexOf(msg.itemFileName.split('.').pop().toLowerCase()) !== -1) {
                                 dualLog(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info", {
-                                    ...msg,
-                                    itemFileData: undefined
+                                    ...msg
                                 });
                                 LocalQueue.setItem(fileId, { id: fileId, queue, message: msg })
                                     .then(async function () {
@@ -1485,8 +1484,7 @@
                     }
                 } else if (msg.messageType === 'sfile' && msg.itemFileData && msg.itemFileName && ['jpg', 'jpeg', 'jfif', 'png'].indexOf(msg.itemFileName.split('.').pop().toLowerCase()) !== -1) {
                     Logger.printLine(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info", {
-                        ...msg,
-                        itemFileData: undefined
+                        ...msg
                     });
                     LocalQueue.setItem(fileId, { id: fileId, queue, message: msg })
                         .then(async function () {
