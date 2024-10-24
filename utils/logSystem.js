@@ -3,13 +3,72 @@ const systemglobal = require('./../config.json');
 const colors = require('colors');
 const sleep = (waitTimeInMs) => new Promise(resolve => setTimeout(resolve, waitTimeInMs));
 const WebSocket = require('ws');
+const os = require("os");
+const pidusage = require('pidusage');
 let logServerConn;
 let logServerisConnected = false;
 let unsentLogs = {};
 let rollingIndex = 0;
 let remoteLogger = false;
 let flushTimeout;
+const isPm2 = process.env.hasOwnProperty('PM2_HOME');
+function bytesToMB(bytes) {
+    return parseFloat((bytes / (1024 * 1024)).toFixed(2)); // Convert to MB and round to 2 decimals
+}
+function calculatePercentage(used, total) {
+    return parseFloat(((used / total) * 100).toFixed(2)); // Round to 2 decimals
+}
+let metricsRunner;
+async function reportMetrics() {
+    try {
+        // Get process metrics
+        const stats = await pidusage(process.pid);
+        const processCpuPercent = parseFloat(stats.cpu.toFixed(2));
+        const processMemoryMB = bytesToMB(stats.memory);
+        const processUptime = parseInt(process.uptime().toFixed(0));
 
+        // System memory metrics
+        const totalMemory = os.totalmem();
+        const freeMemory = os.freemem();
+        const usedMemory = totalMemory - freeMemory;
+        const totalMemoryMB = bytesToMB(totalMemory);
+        const freeMemoryMB = bytesToMB(freeMemory);
+        const usedMemoryMB = bytesToMB(usedMemory);
+        const memoryUsagePercent = calculatePercentage(usedMemory, totalMemory);
+
+        const systemUptime = parseInt(os.uptime().toFixed(0));
+
+        // Prepare data for sending
+        const metrics = {
+            isPm2,
+            name: (process.env.name || 'default-process'),
+            server: systemglobal.system_name,
+            process: {
+                cpu: processCpuPercent,  // CPU percentage as a raw number
+                memoryUsed: processMemoryMB,  // Memory in MB
+                uptimeSeconds: processUptime  // Uptime in seconds
+            },
+            system: {
+                memory: {
+                    total: totalMemoryMB,   // Total memory in MB
+                    used: usedMemoryMB,     // Used memory in MB
+                    free: freeMemoryMB,     // Free memory in MB
+                    usagePercent: memoryUsagePercent  // Memory usage percentage
+                },
+                uptimeSeconds: systemUptime  // System uptime in seconds
+            },
+            time: new Date().valueOf()
+        };
+        // Send metrics to the log server
+        if (logServerConn && logServerConn.readyState === WebSocket.OPEN) {
+            logServerConn.send(JSON.stringify({ metrics }));
+        }
+        clearTimeout(metricsRunner);
+        metricsRunner = setTimeout(reportMetrics, 30000)
+    } catch (err) {
+        console.error('Error reporting metrics:', err);
+    }
+}
 function connectToWebSocket(serverUrl) {
     logServerConn = new WebSocket(serverUrl);
 
@@ -91,15 +150,11 @@ if (systemglobal.log_server) {
     connectToWebSocket('ws://' + systemglobal.log_server);
     sendLog('Init', `Forwarding logs to Othinus Server`, 'debug');
     console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][Init] Forwarding logs to Othinus Server - MuginoMIITS`.gray);
+    reportMetrics();
 }
 
 async function printLine(proccess, text, level, object, object2, no_ack = false) {
     let logObject = {}
-    let logClient = "Unknown"
-    if (proccess) {
-        logClient = proccess
-    }
-    logObject.process = logClient
     let logString =  `${text}`
     if (typeof object !== 'undefined' || (object && object !== null)) {
         if ( (typeof (object) === 'string' || typeof (object) === 'number' || object instanceof String) ) {
@@ -133,14 +188,14 @@ async function printLine(proccess, text, level, object, object2, no_ack = false)
     }
     if (level === "warn" || level === "warning") {
         if (remoteLogger)
-            sendLog(logObject.process, logString, 'warning', logObject);
+            sendLog(proccess, logString, 'warning', logObject);
         console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgYellow)
         if (!text.toLowerCase().includes('block') && systemglobal.log_objects) {
             console.error(logObject)
         }
     } else if (level === "error" || level === "err") {
         if (remoteLogger)
-            sendLog(logObject.process, logString, 'error', logObject);
+            sendLog(proccess, logString, 'error', logObject);
         console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgRed)
         if (object)
             console.error(object)
@@ -148,7 +203,7 @@ async function printLine(proccess, text, level, object, object2, no_ack = false)
             console.error(object2)
     } else if (level === "critical" || level === "crit") {
         if (remoteLogger)
-            sendLog(logObject.process, logString, 'critical', logObject);``
+            sendLog(proccess, logString, 'critical', logObject);``
         console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.bgMagenta)
         if (object)
             console.error(object)
@@ -156,12 +211,12 @@ async function printLine(proccess, text, level, object, object2, no_ack = false)
             console.error(object2)
     } else if (level === "alert") {
         if (remoteLogger)
-            sendLog(logObject.process, logString, 'alert', logObject);
+            sendLog(proccess, logString, 'alert', logObject);
         console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.red)
         console.log(logObject)
     } else if (level === "emergency") {
         if (remoteLogger)
-            sendLog(logObject.process, logString, 'emergency', logObject);
+            sendLog(proccess, logString, 'emergency', logObject);
         console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.bgMagenta)
         if (object)
             console.error(object)
@@ -173,45 +228,45 @@ async function printLine(proccess, text, level, object, object2, no_ack = false)
     } else if (level === "notice") {
         console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.green)
         if (remoteLogger)
-            sendLog(logObject.process, logString, 'notice', logObject);
+            sendLog(proccess, logString, 'notice', logObject);
         if (systemglobal.log_objects) { console.log(logObject) }
     } else if (level === "debug") {
         if (text.includes('was approved!')) {
             if (remoteLogger)
-                sendLog(logObject.process, logString, 'info', logObject, undefined, 'green');
+                sendLog(proccess, logString, 'info', logObject, undefined, 'green');
             console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgGreen)
         } else if (text.includes('Blocked because')) {
             if (remoteLogger)
-                sendLog(logObject.process, logString, 'info', logObject, undefined, 'red');
+                sendLog(proccess, logString, 'info', logObject, undefined, 'red');
             console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgRed)
         } else {
             if (remoteLogger)
-                sendLog(logObject.process, logString, 'debug', logObject);
+                sendLog(proccess, logString, 'debug', logObject);
             console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.gray)
         }
         if (systemglobal.log_objects) { console.log(logObject) }
     } else if (level === "info") {
         if (text.includes('was approved!')) {
             if (remoteLogger)
-                sendLog(logObject.process, logString, 'info', logObject, undefined, 'green');
+                sendLog(proccess, logString, 'info', logObject, undefined, 'green');
             console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgGreen)
         } else if (text.includes('Blocked because')) {
             if (remoteLogger)
-                sendLog(logObject.process, logString, 'info', logObject, undefined, 'red');
+                sendLog(proccess, logString, 'info', logObject, undefined, 'red');
             console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgRed)
         } else if (text.includes(' Message: ')) {
             if (remoteLogger)
-                sendLog(logObject.process, logString, 'info', logObject, undefined, 'cyan');
+                sendLog(proccess, logString, 'info', logObject, undefined, 'cyan');
             console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgCyan)
         } else {
             if (remoteLogger)
-                sendLog(logObject.process, logString, 'info', logObject);
+                sendLog(proccess, logString, 'info', logObject);
             console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.cyan.bgBlack)
         }
         if (systemglobal.log_objects) { console.log(logObject) }
     } else {
         if (remoteLogger)
-            sendLog(logObject.process, logString, 'debug', logObject);
+            sendLog(proccess, logString, 'debug', logObject);
         if (systemglobal.log_objects) { console.log(logObject) }
         console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`)
     }

@@ -23,6 +23,7 @@
     "node-cron": "^3.0.2",
     "node-persist": "^3.1.0",
     "nsfwjs": "^2.4.2",
+    "pidusage": "^3.0.2",
     "request": "^2.88.2",
     "rimraf": "^4.0.7",
     "scramjet": "^4.36.9",
