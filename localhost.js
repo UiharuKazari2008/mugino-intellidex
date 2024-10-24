@@ -1484,7 +1484,10 @@
                             break;
                     }
                 } else if (msg.messageType === 'sfile' && msg.itemFileData && msg.itemFileName && ['jpg', 'jpeg', 'jfif', 'png'].indexOf(msg.itemFileName.split('.').pop().toLowerCase()) !== -1) {
-                    Logger.printLine(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info");
+                    Logger.printLine(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info", {
+                        ...msg,
+                        itemFileData: undefined
+                    });
                     LocalQueue.setItem(fileId, { id: fileId, queue, message: msg })
                         .then(async function () {
                             let image = sharp(new Buffer.from(msg.itemFileData, 'base64'));
@@ -1885,7 +1888,7 @@
             }
             return { url, ...e };
         })
-        dualLog('QueryTags', messages.length + ' items need to be tagged!', 'info');
+        dualLog('QueryTags', messages.length + ' items need to be tagged!', (messages.length > 0) ? 'info' : 'debug');
         let downlaods = {}
         const existingFiles = [
             ...new Set([

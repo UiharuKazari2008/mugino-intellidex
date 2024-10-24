@@ -250,7 +250,7 @@ async function printLine(proccess, text, level, object, object2, no_ack = false)
             if (remoteLogger)
                 sendLog(proccess, logString, 'info', logObject, undefined, 'green');
             console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgGreen)
-        } else if (text.includes('Blocked because')) {
+        } else if (text.includes('Blocked because') || text.includes('rejected')) {
             if (remoteLogger)
                 sendLog(proccess, logString, 'info', logObject, undefined, 'red');
             console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgRed)
