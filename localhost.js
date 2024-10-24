@@ -469,16 +469,23 @@
                             const rs = await parseResultsForQuery(message[0].channel, tagResults)
                             if (!rs.approval) {
                                 extra += ', hidden = 1'
-                                dualLog('WatchResults', `Entity ${eid} will be hidden!`, 'alert');
+                                dualLog('WatchResults', `Entity ${eid} will be hidden!`, 'alert', {
+                                    result: rs
+                                });
                             } else {
-                                dualLog('WatchResults', `Entity ${eid} was approved!`, 'info');
+                                dualLog('WatchResults', `Entity ${eid} was approved!`, 'info', {
+                                    result: rs
+                                });
                             }
                             if (rs.folder)
                                 extra += `, fid = ${rs.folder}`
                         }
                         let tagString = (Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ') + '; ');
                         let safety = null;
-                        dualLog('WatchResults', `Entity ${eid} has ${Object.keys(tagResults).length} tags!`, 'debug');
+                        dualLog('WatchResults', `Entity ${eid} has ${Object.keys(tagResults).length} tags!`, 'debug', {
+                            tagString,
+                            message: message[0],
+                        });
                         await sqlPromiseSafe(`UPDATE kanmi_records SET tags = ?, safety = ?${extra} WHERE eid = ?`, [tagString, safety, eid])
                         Object.keys(tagResults).map(async k => {
                             const r = tagResults[k];
@@ -503,12 +510,20 @@
                             .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                         const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
                         const approved = await parseResultsForMessage(key, tagResults);
-                        dualLog('WatchResults', `Message ${key} has ${Object.keys(tagResults).length} tags!`, 'info');
-                        if (approved) {
+                        dualLog('WatchResults', `Message ${key} has ${Object.keys(tagResults).length} tags!`, 'info', {
+                            tags: tagResults
+                        });
+                        if (approved.result) {
                             mqClient.sendData(`${approved.destination}`, approved.message, function (ok) { });
-                            dualLog('WatchResults', `Message ${key} was approved!`, 'info');
+                            dualLog('WatchResults', `Message ${key} was approved!`, 'info', {
+                                result: approved.result,
+                                debug: approved.debug
+                            });
                         } else {
-                            dualLog('WatchResults', `Message ${key} was denied! Will not be delivered!`, 'alert');
+                            dualLog('WatchResults', `Message ${key} was denied! Will not be delivered!`, 'alert', {
+                                result: approved.result,
+                                debug: approved.debug
+                            });
                         }
                         try {
                             fs.unlinkSync(jsonFilePath);
@@ -690,7 +705,9 @@
                     if (systemglobal.rules)
                         systemglobal.rules.map(async rule => { rule.channels.map(ch => { ruleSets.set(ch, rule) }) })
 
-                    dualLog('RuleManager', ruleSets.size + ' configured rules', 'log');
+                    dualLog('RuleManager', ruleSets.size + ' configured rules', 'log', {
+                        rules: systemglobal.rules
+                    });
 
                     function startWorker() {
                         amqpConn.createChannel(function(err, ch) {
@@ -954,7 +971,10 @@
                                         break;
                                 }
                             } else if (msg.messageType === 'sfile' && msg.itemFileData && msg.itemFileName && ['jpg', 'jpeg', 'jfif', 'png'].indexOf(msg.itemFileName.split('.').pop().toLowerCase()) !== -1) {
-                                dualLog(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info");
+                                dualLog(`MessageProcessor`, `Process Message: (${queue}) From: ${msg.fromClient}, To Channel: ${msg.messageChannelID}`, "info", {
+                                    ...msg,
+                                    itemFileData: undefined
+                                });
                                 LocalQueue.setItem(fileId, { id: fileId, queue, message: msg })
                                     .then(async function () {
                                         let image = sharp(new Buffer.from(msg.itemFileData, 'base64'));
@@ -971,15 +991,25 @@
                                                 smallest = metadata.width;
                                             }
                                             if (rules && metadata && rules.require && rules.require.max_res && rules.require.max_res <= largest) {
-                                                dualLog('MessageParser', `Blocked because image to large: ${largest} > ${rules.require.max_res}`, 'info');
+                                                dualLog('MessageParser', `Blocked because image to large: ${largest} > ${rules.require.max_res}`, 'info', {
+                                                    rule: rules.require,
+                                                    metadata
+                                                });
                                                 return false;
                                             }
                                             if (rules && metadata && rules.require && rules.require.min_res && rules.require.min_res > smallest) {
-                                                dualLog('MessageParser', `Blocked because image to small: ${smallest} < ${rules.require.min_res}`, 'info');
+                                                dualLog('MessageParser', `Blocked because image to small: ${smallest} < ${rules.require.min_res}`, 'info', {
+                                                    rule: rules.require,
+                                                    metadata
+                                                });
                                                 return false;
                                             }
                                             if (rules && metadata && rules.require && rules.require.not_aspect_ratio && rules.require.not_aspect_ratio.indexOf(toFixed((metadata.height / metadata.width), 5).toString()) !== -1) {
-                                                dualLog('MessageParser', `Blocked because aspect ratio: ${toFixed((metadata.height / metadata.width), 5).toString()}R`, 'info');
+                                                dualLog('MessageParser', `Blocked because aspect ratio: ${toFixed((metadata.height / metadata.width), 5).toString()}R`, 'info', {
+                                                    rule: rules.require,
+                                                    ratio: toFixed((metadata.height / metadata.width), 5),
+                                                    metadata
+                                                });
                                                 return false;
                                             }
                                             return true;
@@ -1471,15 +1501,25 @@
                                     smallest = metadata.width;
                                 }
                                 if (rules && metadata && rules.require && rules.require.max_res && rules.require.max_res <= largest) {
-                                    dualLog('MessageProcessor', `Blocked because image to large: ${largest} > ${rules.require.max_res} `, 'info');
+                                    dualLog('MessageProcessor', `Blocked because image to large: ${largest} > ${rules.require.max_res} `, 'info', {
+                                        rule: rules.require,
+                                        metadata
+                                    });
                                     return false;
                                 }
                                 if (rules && metadata && rules.require && rules.require.min_res && rules.require.min_res > smallest) {;
-                                    dualLog('MessageProcessor', `Blocked because image to small: ${smallest} < ${rules.require.min_res}`, 'info');
+                                    dualLog('MessageProcessor', `Blocked because image to small: ${smallest} < ${rules.require.min_res}`, 'info', {
+                                        rule: rules.require,
+                                        metadata
+                                    });
                                     return false;
                                 }
                                 if (rules && metadata && rules.require && rules.require.not_aspect_ratio && rules.require.not_aspect_ratio.indexOf(toFixed((metadata.height / metadata.width), 5).toString()) !== -1) {
-                                    dualLog('MessageProcessor', `Blocked because aspect ratio: ${toFixed((metadata.height / metadata.width), 5).toString()}R`, 'info');
+                                    dualLog('MessageProcessor', `Blocked because aspect ratio: ${toFixed((metadata.height / metadata.width), 5).toString()}R`, 'info', {
+                                        rule: rules.require,
+                                        ratio: toFixed((metadata.height / metadata.width), 5),
+                                        metadata
+                                    });
                                     return false;
                                 }
                                 return true;
@@ -1721,11 +1761,13 @@
                     let ddOptions = ['evaluate', systemglobal.deepbooru_input_path, '--project-path', systemglobal.deepbooru_model_path, '--allow-folder', '--save-json', '--save-path', systemglobal.deepbooru_output_path, '--no-tag-output']
                     if (systemglobal.deepbooru_gpu)
                         ddOptions.push('--allow-gpu')
-                    dualLog('QueryImage', ddOptions.join(' '), 'debug');
+                    dualLog('QueryImage', "Start Mugino!", 'debug', {
+                        command: ddOptions.join(' ')
+                    });
                     const muginoMeltdown = spawn(((systemglobal.deepbooru_exec) ? systemglobal.deepbooru_exec : 'deepbooru'), ddOptions, {encoding: 'utf8'})
 
                     if (!systemglobal.deepbooru_no_log)
-                        muginoMeltdown.stdout.on('data', (data) => dualLog('QueryImage', data.toString().trim().split('\n').filter(e => e.trim().length > 1 && !e.trim().includes('===] ')).join('\n'), 'info'))
+                        muginoMeltdown.stdout.on('data', (data) => console.log(data.toString().trim().split('\n').filter(e => e.trim().length > 1 && !e.trim().includes('===] ')).join('\n')))
                     muginoMeltdown.stderr.on('data', (data) => dualLog('QueryImage',data.toString(), 'error'));
                     muginoMeltdown.on('close', (code, signal) => {
                         /*(fs.readdirSync(systemglobal.deepbooru_input_path))
@@ -1823,7 +1865,10 @@
 
         const sqlOrderBy = (analyzerGroup && analyzerGroup.order) ? analyzerGroup.order :'eid DESC'
         const query = `SELECT x.*, y.host, y.path_hint, y.preview_hint, y.full_hint, y.mfull_hint FROM (SELECT ${sqlFields.join(', ')} FROM ${sqlTables.join(', ')} WHERE (${sqlWhereBase.join(' AND ')} AND (${sqlWhereFiletypes.join(' OR ')}))${(sqlWhereFilter.length > 0) ? ' AND (' + sqlWhereFilter.join(' AND ') + ')' : ''} ORDER BY ${sqlOrderBy} LIMIT ${(analyzerGroup && analyzerGroup.limit) ? analyzerGroup.limit : 100}) x LEFT JOIN (SELECT eid, host, path_hint, preview_hint, full_hint, mfull_hint FROM kanmi_records_cdn WHERE host = ${systemglobal.cdn_id} AND (preview_hint IS NOT NULL OR full_hint IS NOT NULL OR mfull_hint IS NOT NULL)) y ON (x.eid = y.eid)`
-        dualLog('QueryTags', `Selecting data for analyzer group...`, 'info');
+        dualLog('QueryTags', `Selecting data for analyzer group...`, 'info', {
+            query,
+            analyzerGroup
+        });
 
         const messages = (await sqlPromiseSafe(query, true)).rows.map(e => {
             let url
@@ -2115,38 +2160,65 @@
                                 let tagString = (Object.keys(results).map(k => `${modelTags.get(k) || 0}/${parseFloat(results[k]).toFixed(4)}/${k}`).join('; ') + '; ')
                                 if (result) {
                                     ok({
+                                        result: true,
                                         destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
                                         message: {
                                             fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
                                             ...data.message,
                                             messageTags: tagString,
                                             messageChannelFolder: folderMatch
+                                        },
+                                        debug: {
+                                            text: data.message.messageText,
+                                            tags,
+                                            rules
                                         }
                                     });
                                 } else {
-                                    ok(false)
+                                    ok({
+                                        result: false,
+                                        debug: {
+                                            text: data.message.messageText,
+                                            tags,
+                                            rules
+                                        }
+                                    })
                                 }
                             } else if (bypass) {
                                 dualLog('CheckApproval', `Bypassing ${key}, No tags data provided`, 'warn');
                                 ok({
+                                    result: true,
                                     destination: `${systemglobal.mq_discord_out}${(data.queue !== 'normal') ? '.' + data.queue : ''}`,
                                     message: {
                                         fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
                                         ...data.message
+                                    },
+                                    debug: {
+                                        bypass: true,
+                                        text: data.message.messageText
                                     }
                                 });
                             } else {
-                                ok(false)
+                                ok({
+                                    result: false,
+                                    debug: {
+                                        text: data.message.messageText
+                                    }
+                                })
                             }
 
                         } else {
                             dualLog('CheckApproval', `Unexpectedly Failed to get message data for key ${key}`, 'error');
-                            ok(false);
+                            ok({
+                                result: false
+                            })
                         }
                     })
                     .catch(err => {
                         dualLog('CheckApproval', `Unexpectedly Failed to get message for key ${key}`, 'error');
-                        ok(false);
+                        ok({
+                            result: false
+                        })
                     })
             })
         }
@@ -2279,11 +2351,16 @@
         if (systemglobal.holding_path) {
             const inputFiles = fs.readdirSync(systemglobal.deepbooru_input_path);
             if (inputFiles.length > 0) {
-                dualLog('ValidateImages', `${inputFiles.length} files are pending! Skipping loading of images.`, 'warn');
+                dualLog('ValidateImages', `${inputFiles.length} files are pending! Skipping loading of images.`, 'warn', {
+                    inputFiles
+                });
             } else {
                 const holdingFiles = fs.readdirSync(systemglobal.holding_path);
                 if (holdingFiles.length > (systemglobal.max_load || 150)) {
-                    dualLog('ValidateImages', `There are ${holdingFiles.length} files pending. Processing first ${(systemglobal.max_load || 150)} files.`, 'info');
+                    dualLog('ValidateImages', `There are ${holdingFiles.length} files pending. Processing first ${(systemglobal.max_load || 150)} files.`, 'info', {
+                        holdingFiles,
+                        inputFiles
+                    });
                 }
 
                 // Move up to 150 files to the deepbooru_input_path
@@ -2308,16 +2385,17 @@
                 image = null;
             } catch (err) {
                 if (warnedImages[e] !== undefined && warnedImages[e] < totalItems) {
-                    dualLog('ValidateImages', `Image is invalid: ${e}`, 'error');
+                    dualLog('ValidateImages', `Image is invalid: ${e}`, 'error', e);
                     try {
                         if (e.includes('message-')) {
                             const key = e.split('message-').pop().split('.')[0];
                             const a = await parseResultsForMessage(key, undefined, true);
-                            mqClient.sendData( `${a.destination}`, a.message, function (ok) { });
+                            if (a)
+                                mqClient.sendData( `${a.destination}`, a.message, function (ok) { });
                         }
                         fs.unlinkSync(path.join(systemglobal.deepbooru_input_path, e));
                     } catch (e) {
-                        dualLog('ValidateImages', `${err.message}`, 'error');
+                        dualLog('ValidateImages', `${e.message}`, 'error', e);
                     }
                 } else {
                     warnedImages[e] = totalItems;
