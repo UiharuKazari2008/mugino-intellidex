@@ -187,9 +187,15 @@ async function printLine(proccess, text, level, object, object2, no_ack = false)
         }
     }
     if (level === "warn" || level === "warning") {
-        if (remoteLogger)
-            sendLog(proccess, logString, 'warning', logObject);
-        console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgYellow)
+        if (text.includes('rejected')) {
+            if (remoteLogger)
+                sendLog(proccess, logString, 'warning', logObject, undefined, 'red');
+            console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgRed)
+        } else {
+            if (remoteLogger)
+                sendLog(proccess, logString, 'warning', logObject);
+            console.log(`[${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}][${proccess}] ${text}`.black.bgYellow)
+        }
         if (!text.toLowerCase().includes('block') && systemglobal.log_objects) {
             console.error(logObject)
         }
