@@ -338,11 +338,11 @@
 
         }
 
-        Logger.printLine("SQL", "All SQL Configuration records have been assembled!", "debug");
         setTimeout(loadDatabaseCache, 1200000)
     }
     await loadDatabaseCache();
     console.log(systemglobal);
+    Logger.printLine("SQL", "All SQL Configuration records have been assembled!", "debug");
 
     function checkMemoryUsage() {
         const totalMemory = os.totalmem(); // Total memory in bytes
