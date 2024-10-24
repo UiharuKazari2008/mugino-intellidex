@@ -32,7 +32,7 @@ module.exports = function (facility, sgoveride) {
                 printLine("KanmiMQ", "Attempting to Reconnect...", "debug")
                 return setTimeout(start, 1000);
             });
-            printLine("KanmiMQ", `Connected to Kanmi Exchange as ${config.system_name}!`, "info")
+            printLine("KanmiMQ", `Connected to Kanmi Exchange as ${config.system_name}!`, "debug")
             amqpConn = conn;
             whenConnected();
         });
@@ -93,7 +93,7 @@ module.exports = function (facility, sgoveride) {
             if (callback) {
                 ok(true);
                 if (client !== config.mq_inbox) {
-                    printLine("KanmiMQ", `Sent message to ${client}`, "info", cleanObject)
+                    printLine("KanmiMQ", `Sent message to ${client}`, "debug", cleanObject)
                 }
             } else {
                 ok(false)
