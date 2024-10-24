@@ -350,9 +350,9 @@
         const usedMemory = totalMemory - freeMemory;
         const usedMemoryPercentage = (usedMemory / totalMemory) * 100;
 
-        dualLog('MemoryUsage', `Total Memory: ${(totalMemory / (1024 * 1024)).toFixed(2)} MB`, 'info');
-        dualLog('MemoryUsage', `Used Memory: ${(usedMemory / (1024 * 1024)).toFixed(2)} MB`, 'info');
-        dualLog('MemoryUsage', `Used Memory Percentage: ${usedMemoryPercentage.toFixed(2)}%`, 'info');
+        dualLog('MemoryUsage', `Total Memory: ${(totalMemory / (1024 * 1024)).toFixed(2)} MB`, 'debug');
+        dualLog('MemoryUsage', `Used Memory: ${(usedMemory / (1024 * 1024)).toFixed(2)} MB`, 'debug');
+        dualLog('MemoryUsage', `Used Memory Percentage: ${usedMemoryPercentage.toFixed(2)}%`, 'debug');
 
         if (usedMemoryPercentage > 95 && systemglobal.reset_on_overload) {
             dualLog('MemoryUsage', "Memory overflow prevention", 'emergency');
@@ -482,7 +482,7 @@
                         }
                         let tagString = (Object.keys(tagResults).map(k => `${modelTags.get(k) || 0}/${parseFloat(tagResults[k]).toFixed(4)}/${k}`).join('; ') + '; ');
                         let safety = null;
-                        dualLog('WatchResults', `Entity ${eid} has ${Object.keys(tagResults).length} tags!`, 'debug', {
+                        dualLog('WatchResults', `Entity ${eid} has ${Object.keys(tagResults).length} tags!`, 'info', {
                             tagString,
                             message: message[0],
                         });
@@ -510,7 +510,7 @@
                             .filter(k => k.split('.')[0] === path.basename(filePath).split('.')[0]).pop();
                         const tagResults = JSON.parse(fs.readFileSync(jsonFilePath).toString());
                         const approved = await parseResultsForMessage(key, tagResults);
-                        dualLog('WatchResults', `Message ${key} has ${Object.keys(tagResults).length} tags!`, 'info', {
+                        dualLog('WatchResults', `Message ${key} has ${Object.keys(tagResults).length} tags!`, 'debug', {
                             tags: tagResults
                         });
                         if (approved.result) {
@@ -535,7 +535,7 @@
                         await LocalQueue.removeItem(key);
                     } else if ((filePath.split('/').pop().split('\\').pop().endsWith('.jpg') || filePath.split('/').pop().split('\\').pop().endsWith('.png')) && filePath.split('/').pop().split('\\').pop().startsWith('upscale-')) {
                         const key = path.basename(filePath).split('upscale-').pop().split('.')[0];
-                        dualLog('WatchResults', `Message ${key} has been upscaled!`, 'info');
+                        dualLog('WatchResults', `Message ${key} has been upscaled!`, 'debug');
 
                         mqClient.sendData(`${approved.destination}`, approved.message, function (ok) {
                         });
@@ -559,7 +559,7 @@
                     dualLog('WatchResults', error.message, 'error');
                 })
                 .on('ready', function () {
-                    dualLog('WatchResults', "MIITS Results Watcher Ready!", 'info');
+                    dualLog('WatchResults', "MIITS Results Watcher Ready!", 'debug');
                 });
         }
     }
@@ -898,7 +898,7 @@
                                                             await splitFile.mergeFiles(itemsCompleted.sort(function (a, b) {
                                                                 return a - b
                                                             }), CompleteFilename)
-                                                            Logger.printLine("MPFDownload", `File "${fileName.replace(/[/\\?%*:|"<> ]/g, '_')}" was build successfully!`, "info")
+                                                            Logger.printLine("MPFDownload", `File "${fileName.replace(/[/\\?%*:|"<> ]/g, '_')}" was build successfully!`, "debug")
                                                             await new Promise((deleted) => {
                                                                 rimraf(PartsFilePath, function (err) { deleted(!err) });
                                                             })
@@ -1073,7 +1073,7 @@
                                     return setTimeout(start, 1000);
                                 }
                             });
-                            Logger.printLine("KanmiMQ", `Connected to Kanmi Exchange as ${systemglobal.system_name}!`, "info")
+                            Logger.printLine("KanmiMQ", `Connected to Kanmi Exchange as ${systemglobal.system_name}!`, "debug")
                             amqpConn = conn;
                             whenConnected();
                         });
@@ -1099,7 +1099,7 @@
                     start();
                     if (systemglobal.search)
                         await parseUntilDone(systemglobal.search);
-                    dualLog('Init', "First pass completed!", 'info');
+                    dualLog('Init', "First pass completed!", 'debug');
                 } else {
                     shutdownComplete = true;
                     watchResults();
@@ -1123,7 +1123,7 @@
                     }
                 }
             } else {
-                Logger.printLine("ClusterIO", "System active master", "info");
+                Logger.printLine("ClusterIO", "System active master", "alert");
                 activeNode = true;
                 cont(true)
             }
@@ -1412,7 +1412,7 @@
                                                 await splitFile.mergeFiles(itemsCompleted.sort(function (a, b) {
                                                     return a - b
                                                 }), CompleteFilename)
-                                                Logger.printLine("MPFDownload", `File "${fileName.replace(/[/\\?%*:|"<> ]/g, '_')}" was build successfully!`, "info")
+                                                Logger.printLine("MPFDownload", `File "${fileName.replace(/[/\\?%*:|"<> ]/g, '_')}" was build successfully!`, "debug")
                                                 await new Promise((deleted) => {
                                                     rimraf(PartsFilePath, function (err) { deleted(!err) });
                                                 })
@@ -1583,7 +1583,7 @@
                         return setTimeout(start, 1000);
                     }
                 });
-                Logger.printLine("KanmiMQ", `Connected to Kanmi Exchange as ${systemglobal.system_name}!`, "info")
+                Logger.printLine("KanmiMQ", `Connected to Kanmi Exchange as ${systemglobal.system_name}!`, "debug")
                 amqpConn = conn;
                 whenConnected();
             });
@@ -1608,12 +1608,12 @@
         start();
         if (systemglobal.search)
             await parseUntilDone(systemglobal.search);
-        dualLog('Init', "First pass completed!", 'info');
+        dualLog('Init', "First pass completed!", 'debug');
     } else {
         await processGPUWorkloads();
         if (systemglobal.search)
             await parseUntilDone(systemglobal.search);
-        dualLog('Init', "First pass completed!", 'info');
+        dualLog('Init', "First pass completed!", 'debug');
     }
 
     async function clearFolder(folderPath) {
@@ -1621,7 +1621,7 @@
             const files = await fs.promises.readdir(folderPath);
             for (const file of files) {
                 await fs.promises.unlink(path.resolve(folderPath, file));
-                dualLog('ClearFolder', `${folderPath}/${file} has been removed successfully`, 'info');
+                dualLog('ClearFolder', `${folderPath}/${file} has been removed successfully`, 'debug');
             }
         } catch (err){
             dualLog('CleanFolder', `${err.message}`, 'error');
@@ -1660,7 +1660,7 @@
     async function upscaleImages() {
         if (!upscaleIsActive) {
             upscaleIsActive = true;
-            dualLog('UpscaleImages', 'Processing image upscale via MIITS Client...', 'info');
+            dualLog('UpscaleImages', 'Processing image upscale via MIITS Client...', 'debug');
             return new Promise(async (resolve) => {
                 const startTime = Date.now();
                 (fs.readdirSync(systemglobal.waifu2x_input_path))
@@ -1687,10 +1687,10 @@
                                                 systemglobal.waifu2x_exec_format_options[data.parameters.image_format || 0],
                                                 ...(systemglobal.waifu2x_exec_additional_options || [])
                                             ]
-                                            dualLog('UpscaleImages', w2xOptions.join(' '), 'info');
+                                            dualLog('UpscaleImages', w2xOptions.join(' '), 'debug');
                                             const muginoMeltdown = spawn(((systemglobal.waifu2x_exec) ? systemglobal.waifu2x_exec : 'waifu2x'), w2xOptions, {encoding: 'utf8'})
                                             if (!systemglobal.waifu2x_no_log)
-                                                muginoMeltdown.stdout.on('data', (data) => dualLog('UpscaleImages', data.toString().trim().split('\n').filter(e => e.trim().length > 1 && !e.trim().includes('===] ')).join('\n'), 'info'))
+                                                muginoMeltdown.stdout.on('data', (data) => dualLog('UpscaleImages', data.toString().trim().split('\n').filter(e => e.trim().length > 1 && !e.trim().includes('===] ')).join('\n'), 'debug'))
                                             muginoMeltdown.stderr.on('data', (data) => dualLog('UpscaleImages', data.toString(), 'error'));
                                             muginoMeltdown.on('close', (code, signal) => {
                                                 (fs.readdirSync(systemglobal.waifu2x_input_path))
@@ -1724,7 +1724,7 @@
                         })
                     })
                 } else {
-                    console.info(`There are no file that need to be upscaled!`);
+                    console.debug(`There are no file that need to be upscaled!`);
                     mittsIsActive = false;
                     resolve(true)
                 }
@@ -1736,7 +1736,7 @@
     async function queryImageTags() {
         if (!mittsIsActive) {
             mittsIsActive = true;
-            dualLog('QueryImage', 'Processing image tags via MIITS Client...', 'info');
+            dualLog('QueryImage', 'Processing image tags via MIITS Client...', 'debug');
             const date = Date.now();
             return new Promise(async (resolve) => {
                 const startTime = Date.now();
@@ -1779,7 +1779,7 @@
                             totalItems += 1
                             resolve(false)
                         } else {
-                            dualLog('QueryImage', `Tagging Completed in ${((Date.now() - startTime) / 1000).toFixed(0)} sec!`, 'info');
+                            dualLog('QueryImage', `Tagging Completed in ${((Date.now() - startTime) / 1000).toFixed(0)} sec!`, 'debug');
                             mittsIsActive = false;
                             resolve(true)
                         }
@@ -1794,7 +1794,7 @@
                         }
                     })
                 } else {
-                    console.info(`There are no file that need to be tagged!`);
+                    console.debug(`There are no file that need to be tagged!`);
                     mittsIsActive = false;
                     resolve(true)
                 }
@@ -1865,7 +1865,7 @@
 
         const sqlOrderBy = (analyzerGroup && analyzerGroup.order) ? analyzerGroup.order :'eid DESC'
         const query = `SELECT x.*, y.host, y.path_hint, y.preview_hint, y.full_hint, y.mfull_hint FROM (SELECT ${sqlFields.join(', ')} FROM ${sqlTables.join(', ')} WHERE (${sqlWhereBase.join(' AND ')} AND (${sqlWhereFiletypes.join(' OR ')}))${(sqlWhereFilter.length > 0) ? ' AND (' + sqlWhereFilter.join(' AND ') + ')' : ''} ORDER BY ${sqlOrderBy} LIMIT ${(analyzerGroup && analyzerGroup.limit) ? analyzerGroup.limit : 100}) x LEFT JOIN (SELECT eid, host, path_hint, preview_hint, full_hint, mfull_hint FROM kanmi_records_cdn WHERE host = ${systemglobal.cdn_id} AND (preview_hint IS NOT NULL OR full_hint IS NOT NULL OR mfull_hint IS NOT NULL)) y ON (x.eid = y.eid)`
-        dualLog('QueryTags', `Selecting data for analyzer group...`, 'info', {
+        dualLog('QueryTags', `Selecting data for analyzer group...`, 'debug', {
             query,
             analyzerGroup
         });
@@ -1899,7 +1899,7 @@
             return true;
         while (Object.keys(downlaods).length !== 0) {
             let downloadKeys = Object.keys(downlaods).slice(0,systemglobal.parallel_downloads || 25)
-            dualLog('QueryTags', `${Object.keys(downlaods).length} Left to download`, 'info');
+            dualLog('QueryTags', `${Object.keys(downlaods).length} Left to download`, 'debug');
             await Promise.all(downloadKeys.map(async k => {
                 const e = downlaods[k];
                 const results = await new Promise(ok => {
@@ -2421,7 +2421,7 @@
                     }, Promise.resolve());
                     requests.then(async () => {
                         if (noResults !== analyzerGroups.length) {
-                            dualLog('Parser', 'Search Jobs Completed!, Starting MIITS Tagger...', 'info');
+                            dualLog('Parser', 'Search Jobs Completed!, Starting MIITS Tagger...', 'debug');
                             if (!gpuLocked && startEvaluating === null) {
                                 clearTimeout(startEvaluating);
                                 startEvaluating = null;
@@ -2431,7 +2431,7 @@
                             while (mittsIsActive) {
                                 await sleep(5000);
                             }
-                            dualLog('Parser', 'MIITS Tagger finished!', 'info');
+                            dualLog('Parser', 'MIITS Tagger finished!', 'debug');
                             completed();
                         } else {
                             completed();
@@ -2443,7 +2443,7 @@
                     const _r = await queryForTags();
                     if (_r)
                         noResults++;
-                    dualLog('Parser', 'Search Jobs Completed!, Starting MIITS Tagger...', 'info');
+                    dualLog('Parser', 'Search Jobs Completed!, Starting MIITS Tagger...', 'debug');
                 } else {
                     const existingFiles = [
                         ...new Set([
@@ -2454,7 +2454,7 @@
                     ]
                     if (existingFiles.length === 0)
                         noResults++;
-                    dualLog('Parser', 'MIITS Tagger finished!', 'info');
+                    dualLog('Parser', 'MIITS Tagger finished!', 'debug');
                 }
                 clearTimeout(startEvaluating);
                 startEvaluating = null;
@@ -2463,11 +2463,11 @@
                 while (mittsIsActive) {
                     await sleep(5000);
                 }
-                dualLog('Parser', 'MIITS Tagger finished!', 'info');
+                dualLog('Parser', 'MIITS Tagger finished!', 'debug');
             }
             if ((analyzerGroups && noResults === analyzerGroups.length) || (!analyzerGroups && noResults === 1))
                 break;
-            dualLog('Parser', 'More work to be done, waiting for sync...!', 'info');
+            dualLog('Parser', 'More work to be done, waiting for sync...!', 'debug');
             await new Promise(done => setTimeout(() => {
                 checkMemoryUsage();
                 done(true);
