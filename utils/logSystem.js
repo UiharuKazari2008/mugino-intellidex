@@ -4,6 +4,7 @@ const colors = require('colors');
 const sleep = (waitTimeInMs) => new Promise(resolve => setTimeout(resolve, waitTimeInMs));
 const WebSocket = require('ws');
 const os = require("os");
+const pm2 = require("pm2");
 const pidusage = require('pidusage');
 let logServerConn;
 let logServerisConnected = false;
@@ -41,7 +42,9 @@ async function reportMetrics() {
         // Prepare data for sending
         const metrics = {
             isPm2,
-            name: (process.env.name || 'default-process'),
+            pm_id: process.env.pm_id,
+            instance: process.env.NODE_APP_INSTANCE,
+            name: (process.env.name || "MuginoMIITS"),
             server: systemglobal.system_name,
             process: {
                 cpu: processCpuPercent,  // CPU percentage as a raw number
@@ -80,18 +83,15 @@ function connectToWebSocket(serverUrl) {
     };
     logServerConn.onmessage = (event) => { handleIncomingMessage(event); };
     logServerConn.onclose = () => {
-        //console.log('[LogServer] Disconnected from the server');
         logServerisConnected = false;
         reconnectToWebSocket(serverUrl);
     };
     logServerConn.onerror = (error) => {
-        console.error('[LogServer] Error:', error);
         logServerisConnected = false;
         logServerConn.close();
     };
 }
 function reconnectToWebSocket(serverUrl) {
-    //console.log('[LogServer] Attempting to reconnect...');
     setTimeout(() => {
         connectToWebSocket(serverUrl);
     }, 1000); // Reconnect attempt after 1 second
@@ -101,6 +101,38 @@ function handleIncomingMessage(event) {
         const data = JSON.parse(event.data);
         if (data.ack) {
             delete unsentLogs[data.id];
+        } else if (data.control) {
+            const { action, processName } = data.control;
+            if (isPm2) {
+                pm2.connect((err) => {
+                    if (err) {
+                        sendLog("PM2", `Error connecting to PM2: ${err.message}`, 'error');
+                        return;
+                    }
+                    if (action === 'start') {
+                        pm2.stop(processName || process.env.name, (err) => {
+                            if (err) console.error(`Failed to stop ${processName || process.env.name}:`, err);
+                            else console.log(`Stopped ${processName || process.env.name} via PM2`);
+                        });
+                    } else if (action === 'stop') {
+                        pm2.stop(processName || process.env.name, (err) => {
+                            if (err) console.error(`Failed to stop ${processName || process.env.name}:`, err);
+                            else console.log(`Stopped ${processName || process.env.name} via PM2`);
+                        });
+                    } else if (action === 'restart') {
+                        pm2.restart(processName || process.env.name, (err) => {
+                            if (err) console.error(`Failed to restart ${processName || process.env.name}:`, err);
+                            else console.log(`Restarted ${processName || process.env.name} via PM2`);
+                        });
+                    }
+                });
+            } else {
+                if (action === 'restart') {
+                    process.exit(-55);
+                }
+            }
+        } else {
+            console.log(data);
         }
     } catch (error) {
         console.error('[LogServer] Error parsing message:', error);
@@ -127,6 +159,17 @@ function sendLog(proccess, text, level = 'debug', object, object2, color, no_ack
         unsentLogs[logId] = logEntry;
     if (logServerisConnected && logServerConn.readyState === WebSocket.OPEN)
         logServerConn.send(JSON.stringify(logEntry));
+}
+function sendData(data, no_ack = false) {
+    const logId = generateLogId();
+    const sendBlock = {
+        ...data,
+        id: logId
+    };
+    if (!no_ack)
+        unsentLogs[logId] = sendBlock;
+    if (logServerisConnected && logServerConn.readyState === WebSocket.OPEN)
+        logServerConn.send(JSON.stringify(sendBlock));
 }
 function flushUnsentLogs() {
     if (logServerisConnected && logServerConn.readyState === WebSocket.OPEN) {
@@ -285,4 +328,4 @@ process.on('uncaughtException', function(err) {
         sendLog('uncaughtException', `${err.message}`, 'critical');
 });
 
-module.exports = { printLine };
+module.exports = { printLine, sendData };
