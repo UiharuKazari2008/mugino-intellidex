@@ -2114,7 +2114,7 @@
                                             }
                                         }
                                     }
-                                    return undefined; // No matches found, return false
+                                    return data.message.messageChannelFolder;
                                 })();
                                 if (folderMatch)
                                     dualLog('CheckApproval', 'Adding to folder: ' + folderMatch, 'info');
@@ -2153,7 +2153,7 @@
                                             }
                                         }
                                     }
-                                    return undefined; // No matches found, return false
+                                    return data.message.messageChannelFolder
                                 })();
                                 if (channelMatch)
                                     dualLog('CheckApproval', 'Redirecting to channel: ' + channelMatch, 'alert');
@@ -2167,6 +2167,7 @@
                                             fromDPS: `return.${facilityName}.${systemglobal.system_name}`,
                                             ...data.message,
                                             messageTags: tagString,
+                                            messageChannelID: channelMatch,
                                             messageChannelFolder: folderMatch
                                         },
                                         debug: {
