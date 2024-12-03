@@ -1,4 +1,4 @@
-# [Migrated to BlueStel](https://yozora.bluesteel.737.jp.net/Sequenzia/Mugino-Intellidex)
+# [Migrated to BlueSteel](https://yozora.bluesteel.737.jp.net/Sequenzia/Mugino-Intellidex)
 
 # Mugino MIITS Client for Sequenzia IntelliDex+ 
 <img width="700" src="https://user-images.githubusercontent.com/15165770/211075998-eef8e302-768c-4a78-8de3-fc287bade11d.png"><br/>
